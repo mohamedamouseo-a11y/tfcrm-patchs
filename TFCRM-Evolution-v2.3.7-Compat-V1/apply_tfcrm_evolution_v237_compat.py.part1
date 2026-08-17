@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import re
+
+ROOT = Path.cwd()
+TARGETS = {
+    "integration": ROOT / "server/services/waGatewayIntegrationService.ts",
+    "managed": ROOT / "server/services/waGatewayManagedSetupService.ts",
+    "ui": ROOT / "client/src/components/WAGatewaySettingsTab.tsx",
+}
+
+def fail(msg: str):
+    raise SystemExit(f"ERROR: {msg}")
+
+for name, path in TARGETS.items():
+    if not path.is_file():
+        fail(f"missing target [{name}]: {path}")
+
+originals = {name: path.read_text(encoding="utf-8") for name, path in TARGETS.items()}
+patched = dict(originals)
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    count = text.count(old)
+    if count != 1:
+        fail(f"{label}: expected exactly 1 match, found {count}")
+    return text.replace(old, new, 1)
+
+# ---------------------------------------------------------------------------
+# 1) server/services/waGatewayIntegrationService.ts
+# ---------------------------------------------------------------------------
+t = patched["integration"]
+
+t = replace_once(
+    t,
+    'const WEBHOOK_MAX_BODY_BYTES = 512 * 1024;\n',
+    'const WEBHOOK_MAX_BODY_BYTES = 512 * 1024;\n'
+    'const WEBHOOK_AUTH_HEADER = "x-tfcrm-webhook-secret";\n',
+    "integration:add webhook auth header constant",
+)
+
+t = replace_once(
+    t,
+    '      ? "Signed Evolution API webhooks are enabled for QR, connection state and messages."\n'
+    '      : "Set the same 32+ character WEBHOOK_SIGNING_SECRET in Evolution API and TCRM.",\n',
+    '      ? "Evolution API webhooks are authenticated with a TFCRM-managed custom header."\n'
+    '      : "Set a 32+ character TFCRM webhook authentication secret. TCRM sends it to Evolution as a custom webhook header.",\n',
+    "integration:update webhook status copy",
+)
+
+t = replace_once(
+    t,
+    '    healthEndpoint: baseUrl ? `${baseUrl}/healthz` : "",\n',
+    '    healthEndpoint: baseUrl ? `${baseUrl}/` : "",\n',
+    "integration:official v2.3.7 health endpoint",
+)
+
+t = t.replace(
+    "Webhook signing secret must contain 32 to 512 characters",
+    "Webhook authentication secret must contain 32 to 512 characters",
+)
+t = t.replace(
+    "Base URL, API key and webhook signing secret are required before enabling WhatsApp",
+    "Base URL, API key and webhook authentication secret are required before enabling WhatsApp",
+)
+
+t = replace_once(
+    t,
+    'async function configureWAGatewayMetadataEvents(instanceName: string) {\n'
+    '  const warnings: string[] = [];\n',
+    'async function configureWAGatewayMetadataEvents(instanceName: string) {\n'
+    '  const warnings: string[] = [];\n'
+    '  const settingsMap = await getSettingsMap();\n'
+    '  const webhookSecret = decryptSecret(settingsMap.get(SETTINGS_KEYS.webhookSecret));\n',
+    "integration:load webhook secret for Evolution custom header",
+)
+
+t = replace_once(
+    t,
+    '  if (!webhookUrl)\n'
+    '    return {\n'
+    '      eventsConfigured: false,\n'
+    '      warnings: [...warnings, "WhatsApp public webhook URL is not configured"],\n'
+    '    };\n'
+    '  let webhookResult = await gatewayRequest(\n',
+    '  if (!webhookUrl)\n'
+    '    return {\n'
+    '      eventsConfigured: false,\n'
+    '      warnings: [...warnings, "WhatsApp public webhook URL is not configured"],\n'
+    '    };\n'
+    '  if (!webhookSecret)\n'
+    '    return {\n'
+    '      eventsConfigured: false,\n'
+    '      warnings: [...warnings, "TFCRM webhook authentication secret is not configured"],\n'
+    '    };\n'
+    '  let webhookResult = await gatewayRequest(\n',
+    "integration:require TFCRM webhook secret before setting Evolution webhook",
+)
+
+t = replace_once(
+    t,
+    '        webhook: {\n'
+    '          enabled: true,\n'
+    '          url: webhookUrl,\n'
+    '          webhookByEvents: false,\n'
+    '          webhookBase64: false,\n'
+    '          events: [...WAGATEWAY_METADATA_WEBHOOK_EVENTS],\n'
+    '        },\n',
+    '        webhook: {\n'
+    '          enabled: true,\n'
+    '          url: webhookUrl,\n'
+    '          headers: { [WEBHOOK_AUTH_HEADER]: webhookSecret },\n'
+    '          byEvents: false,\n'
+    '          base64: false,\n'
+    '          events: [...WAGATEWAY_METADATA_WEBHOOK_EVENTS],\n'
+    '        },\n',
+    "integration:official Evolution webhook DTO + custom auth header",
+)
+
+t = replace_once(
+    t,
+    '        body: {\n'
+    '          enabled: true,\n'
+    '          url: webhookUrl,\n'
+    '          webhookByEvents: false,\n'
+    '          webhookBase64: false,\n'
+    '          events: [...WAGATEWAY_METADATA_WEBHOOK_EVENTS],\n'
+    '        },\n',
+    '        body: {\n'
+    '          enabled: true,\n'
+    '          url: webhookUrl,\n'
+    '          headers: { [WEBHOOK_AUTH_HEADER]: webhookSecret },\n'
+    '          webhookByEvents: false,\n'
+    '          webhookBase64: false,\n'
+    '          events: [...WAGATEWAY_METADATA_WEBHOOK_EVENTS],\n'
+    '        },\n',
+    "integration:legacy webhook fallback keeps custom auth header",
+)
+
+t = replace_once(
+    t,
+    '  return { eventsConfigured: webhookResult.success, warnings };\n'
+    '}\n\n'
+    'async function runWAGatewayAccountSync(session: any) {\n',
+    '  return { eventsConfigured: webhookResult.success, warnings };\n'
+    '}\n\n'
+    'export async function configureAllWAGatewayWebhooks() {\n'
+    '  const sessions = await getLocalSessions();\n'
+    '  const results: Array<{ sessionId: number; instanceName: string; configured: boolean; warnings: string[] }> = [];\n'
+    '  for (const session of sessions) {\n'
+    '    const instanceName = String(session.sessionKey || "").trim();\n'
+    '    if (!instanceName) continue;\n'
+    '    try {\n'
+    '      const result = await configureWAGatewayMetadataEvents(instanceName);\n'
+    '      results.push({\n'
+    '        sessionId: Number(session.id),\n'
+    '        instanceName,\n'
+    '        configured: result.eventsConfigured,\n'
+    '        warnings: result.warnings,\n'
+    '      });\n'
+    '    } catch (error) {\n'
+    '      results.push({\n'
+    '        sessionId: Number(session.id),\n'
+    '        instanceName,\n'
+    '        configured: false,\n'
+    '        warnings: [sanitizeGatewayError((error as Error)?.message || error)],\n'
+    '      });\n'
+    '    }\n'
+    '  }\n'
+    '  return {\n'
+    '    total: results.length,\n'
+    '    configured: results.filter(item => item.configured).length,\n'
+    '    results,\n'
+    '  };\n'
+    '}\n\n'
+    'async function runWAGatewayAccountSync(session: any) {\n',
+    "integration:add all-instance webhook reconfiguration helper",
+)
+
+t = replace_once(
+    t,
+    '  await recordGatewayError(null);\n'
+    '  return getWAGatewaySettings();\n'
+    '}\n\n'
+    'async function requireGateway() {\n',
+    '  await recordGatewayError(null);\n'
+    '  if (input.enabled && newWebhookSecret) {\n'
+    '    await configureAllWAGatewayWebhooks().catch(error =>\n'
+    '      recordGatewayError(`Webhook configuration warning: ${sanitizeGatewayError((error as Error)?.message || error)}`)\n'
+    '    );\n'
+    '  }\n'
+    '  return getWAGatewaySettings();\n'
+    '}\n\n'
+    'async function requireGateway() {\n',
+    "integration:refresh webhooks after secret change",
+)
+
+t = replace_once(
+    t,
+    '  const webhookUrl = `${String(input.webhookBaseUrl || "").replace(/\\/+$/, "")}/api/wa-gateway/webhook`;\n'
+    '  const result = await gatewayRequest("/instance/create", {\n',
+    '  const webhookUrl = `${String(input.webhookBaseUrl || "").replace(/\\/+$/, "")}/api/wa-gateway/webhook`;\n'
+    '  const settingsMap = await getSettingsMap();\n'
+    '  const webhookSecret = decryptSecret(settingsMap.get(SETTINGS_KEYS.webhookSecret));\n'
