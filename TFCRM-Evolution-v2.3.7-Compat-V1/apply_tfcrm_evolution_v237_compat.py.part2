@@ -1,0 +1,203 @@
+    '  if (!webhookSecret)\n'
+    '    throw new Error("TFCRM webhook authentication secret is not configured");\n'
+    '  const result = await gatewayRequest("/instance/create", {\n',
+    "integration:load secret while creating Evolution instance",
+)
+
+t = replace_once(
+    t,
+    '      webhook: {\n'
+    '        enabled: true,\n'
+    '        url: webhookUrl,\n'
+    '        byEvents: false,\n'
+    '        base64: false,\n'
+    '        events: [...WAGATEWAY_METADATA_WEBHOOK_EVENTS],\n'
+    '      },\n',
+    '      webhook: {\n'
+    '        enabled: true,\n'
+    '        url: webhookUrl,\n'
+    '        headers: { [WEBHOOK_AUTH_HEADER]: webhookSecret },\n'
+    '        byEvents: false,\n'
+    '        base64: false,\n'
+    '        events: [...WAGATEWAY_METADATA_WEBHOOK_EVENTS],\n'
+    '      },\n',
+    "integration:add custom auth header to instance/create webhook",
+)
+
+t = replace_once(
+    t,
+    '          [\n'
+    '            "base64",\n'
+    '            "jpegThumbnail",\n'
+    '          ].includes(key)\n',
+    '          [\n'
+    '            "base64",\n'
+    '            "jpegThumbnail",\n'
+    '            "apikey",\n'
+    '            "apiKey",\n'
+    '            "authorization",\n'
+    '            "token",\n'
+    '            WEBHOOK_AUTH_HEADER,\n'
+    '          ].includes(key)\n',
+    "integration:redact credentials from compact webhook payload",
+)
+
+t = replace_once(
+    t,
+    'function safeEqualHex(left: string, right: string) {\n'
+    '  if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right))\n'
+    '    return false;\n'
+    '  const a = Buffer.from(left, "hex");\n'
+    '  const b = Buffer.from(right, "hex");\n'
+    '  return a.length === b.length && crypto.timingSafeEqual(a, b);\n'
+    '}\n',
+    'function safeEqualHex(left: string, right: string) {\n'
+    '  if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right))\n'
+    '    return false;\n'
+    '  const a = Buffer.from(left, "hex");\n'
+    '  const b = Buffer.from(right, "hex");\n'
+    '  return a.length === b.length && crypto.timingSafeEqual(a, b);\n'
+    '}\n\n'
+    'function safeEqualWebhookSecret(left: string, right: string) {\n'
+    '  if (!left || !right) return false;\n'
+    '  const a = crypto.createHash("sha256").update(left, "utf8").digest();\n'
+    '  const b = crypto.createHash("sha256").update(right, "utf8").digest();\n'
+    '  return a.length === b.length && crypto.timingSafeEqual(a, b);\n'
+    '}\n',
+    "integration:add timing-safe custom header comparison",
+)
+
+old_auth = '''  const timestamp = String(headers["x-evolution-timestamp"] || "");
+  const deliveryId = String(headers["x-evolution-delivery-id"] || "");
+  const signatureHeader = String(headers["x-evolution-signature"] || "");
+  const signature = signatureHeader.replace(/^sha256=/i, "");
+  const timestampNumber = Number(timestamp);
+  if (
+    !deliveryId ||
+    !Number.isFinite(timestampNumber) ||
+    Math.abs(Math.floor(Date.now() / 1000) - timestampNumber) >
+      WEBHOOK_MAX_AGE_SECONDS
+  ) {
+    return {
+      status: 401,
+      body: {
+        success: false,
+        error: "Invalid webhook timestamp or delivery ID",
+      },
+    };
+  }
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(`${timestamp}.${deliveryId}.${rawBody.toString("utf8")}`)
+    .digest("hex");
+  if (!safeEqualHex(expected, signature))
+    return {
+      status: 403,
+      body: { success: false, error: "Invalid webhook signature" },
+    };
+'''
+
+new_auth = '''  const customHeaderSecret = String(headers[WEBHOOK_AUTH_HEADER] || "");
+  const customHeaderAuthenticated = safeEqualWebhookSecret(
+    customHeaderSecret,
+    secret
+  );
+  let deliveryId = String(headers["x-evolution-delivery-id"] || "");
+
+  // Evolution API v2.3.7 supports custom webhook headers but does not generate
+  // x-evolution-timestamp/x-evolution-delivery-id/x-evolution-signature itself.
+  // Prefer the native custom-header contract and retain the previous HMAC
+  // contract only as a backwards-compatible fallback.
+  if (customHeaderAuthenticated) {
+    if (!deliveryId) {
+      deliveryId = crypto
+        .createHash("sha256")
+        .update(rawBody)
+        .digest("hex");
+    }
+  } else {
+    const timestamp = String(headers["x-evolution-timestamp"] || "");
+    const signatureHeader = String(headers["x-evolution-signature"] || "");
+    const signature = signatureHeader.replace(/^sha256=/i, "");
+    const timestampNumber = Number(timestamp);
+    if (
+      !deliveryId ||
+      !Number.isFinite(timestampNumber) ||
+      Math.abs(Math.floor(Date.now() / 1000) - timestampNumber) >
+        WEBHOOK_MAX_AGE_SECONDS
+    ) {
+      return {
+        status: 401,
+        body: {
+          success: false,
+          error: "Invalid webhook authentication",
+        },
+      };
+    }
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(`${timestamp}.${deliveryId}.${rawBody.toString("utf8")}`)
+      .digest("hex");
+    if (!safeEqualHex(expected, signature))
+      return {
+        status: 403,
+        body: { success: false, error: "Invalid webhook authentication" },
+      };
+  }
+'''
+
+t = replace_once(t, old_auth, new_auth, "integration:Evolution v2.3.7 webhook authentication")
+patched["integration"] = t
+
+# ---------------------------------------------------------------------------
+# 2) server/services/waGatewayManagedSetupService.ts
+# ---------------------------------------------------------------------------
+t = patched["managed"]
+
+t = replace_once(
+    t,
+    'import {\n'
+    '  applyManagedWAGatewayCredentials,\n'
+    '  getWAGatewayCredentialSnapshot,\n'
+    '} from "./waGatewayIntegrationService";\n',
+    'import {\n'
+    '  applyManagedWAGatewayCredentials,\n'
+    '  configureAllWAGatewayWebhooks,\n'
+    '  getWAGatewayCredentialSnapshot,\n'
+    '} from "./waGatewayIntegrationService";\n',
+    "managed:import webhook helper",
+)
+
+t = replace_once(
+    t,
+    '  return axios.get(`${MANAGED_BASE_URL}/healthz`, {\n',
+    '  return axios.get(`${MANAGED_BASE_URL}/`, {\n',
+    "managed:official v2.3.7 root health endpoint",
+)
+
+capability_pattern = re.compile(
+    r'export async function getManagedEvolutionSetupCapability\(authorized: boolean\) \{.*?\n\}\n\nexport async function manageEvolutionCredentials',
+    re.S,
+)
+capability_repl = '''export async function getManagedEvolutionSetupCapability(authorized: boolean) {
+  if (!authorized) {
+    return {
+      authorized: false,
+      available: false,
+      reason: "Only the primary super admin can manage Evolution API credentials.",
+      baseUrl: MANAGED_BASE_URL,
+      serverCredentialsPresent: false,
+    };
+  }
+
+  try {
+    assertManagedPreconditions();
+    const snapshot = await getWAGatewayCredentialSnapshot();
+    const apiTokenPresent = isManagedCredentialValid(snapshot.apiToken);
+    return {
+      authorized: true,
+      available: apiTokenPresent,
+      reason: apiTokenPresent
+        ? null
+        : "Save the existing Evolution API API Token in TCRM first. Docker credentials are not rotated by TFCRM.",
+      baseUrl: MANAGED_BASE_URL,
