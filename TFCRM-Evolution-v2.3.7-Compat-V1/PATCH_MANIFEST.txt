@@ -1,0 +1,37 @@
+TFCRM — Evolution API v2.3.7 Compatibility Patch V1
+
+Scope: TFCRM only.
+
+Modified source files:
+1. server/services/waGatewayIntegrationService.ts
+2. server/services/waGatewayManagedSetupService.ts
+3. client/src/components/WAGatewaySettingsTab.tsx
+
+Fixes:
+- Uses Evolution v2.3.7 liveness endpoint GET /
+- Keeps authenticated readiness /instance/fetchInstances + apikey
+- Removes runtime dependency on unsupported WEBHOOK_SIGNING_SECRET in Evolution
+- Uses Evolution-supported per-instance custom webhook headers
+- Header: x-tfcrm-webhook-secret
+- Keeps old HMAC signature flow as backwards-compatible fallback
+- Corrects official webhook DTO fields to byEvents/base64
+- Reconfigures existing instance webhooks when TFCRM webhook secret changes
+- New instances receive the custom webhook auth header
+- Redacts Evolution credential-like values from compact webhook payload storage
+- Docker-safe Managed Setup:
+  * preserves existing Evolution API Token
+  * generates/rotates TFCRM webhook auth secret only
+  * does not rewrite Evolution .env
+  * does not restart Evolution
+- UI copy no longer instructs setting WEBHOOK_SIGNING_SECRET in Evolution.
+
+Required TFCRM runtime policy:
+WA_GATEWAY_ALLOW_INSECURE_HTTP=1
+WA_GATEWAY_ALLOWED_HOSTS=127.0.0.1
+
+Expected Evolution Base URL:
+http://127.0.0.1:8080
+
+No database migration.
+No Evolution source modification.
+No Docker restart by the patch script.
