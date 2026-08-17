@@ -1,0 +1,134 @@
+طبّق باتش TFCRM-Evolution-v2.3.7-Compat-V1 على السيرفر الحالي فقط.
+
+المشكلة المؤكدة:
+- Evolution API الرسمي v2.3.7 شغال على:
+  http://127.0.0.1:8080
+- Container:
+  tfcrm-evolution-api-container
+- Image:
+  evoapicloud/evolution-api:v2.3.7
+- TFCRM كان يتوقع /healthz و WEBHOOK_SIGNING_SECRET و x-evolution-signature، وهي ليست Contract أصلية في Evolution API v2.3.7.
+- Evolution v2.3.7 يدعم Custom Headers في إعداد Webhook.
+- المطلوب إصلاح TFCRM فقط وعدم تعديل سورس Evolution أو قاعدة بيانات Evolution.
+
+نفّذ التالي بأقل تكلفة ممكنة:
+
+1) من root المشروع:
+   cd /var/www/TFCRM
+
+2) فك ملف الباتش وانسخ:
+   apply_tfcrm_evolution_v237_compat.py
+   إلى root المشروع.
+
+3) قبل التطبيق اعرض حالة الملفات المستهدفة فقط:
+   git status --short -- \
+     server/services/waGatewayIntegrationService.ts \
+     server/services/waGatewayManagedSetupService.ts \
+     client/src/components/WAGatewaySettingsTab.tsx
+
+   لا تعمل reset لأي تعديلات موجودة.
+
+4) شغّل:
+   python3 apply_tfcrm_evolution_v237_compat.py
+
+5) تأكد أن .env الخاص بـ TFCRM يحتوي على سياسة loopback التالية.
+   أضفها فقط إذا كانت غير موجودة، ولا تغيّر أي Secret قائم:
+
+   WA_GATEWAY_ALLOW_INSECURE_HTTP=1
+   WA_GATEWAY_ALLOWED_HOSTS=127.0.0.1
+
+   مهم:
+   - ممنوع تغيير WA_GATEWAY_INTEGRATION_SECRET.
+   - ممنوع تغيير AUTH_SETTINGS_ENCRYPTION_KEY.
+   - ممنوع طباعة أي API Token أو Secret.
+
+6) اعرض فقط:
+   git diff -- \
+     server/services/waGatewayIntegrationService.ts \
+     server/services/waGatewayManagedSetupService.ts \
+     client/src/components/WAGatewaySettingsTab.tsx
+
+7) تأكد من التالي:
+   - health endpoint أصبح GET / بدل /healthz.
+   - authenticated readiness ما زال GET /instance/fetchInstances مع apikey.
+   - لا يعتمد TFCRM على WEBHOOK_SIGNING_SECRET داخل Evolution.
+   - Webhook Secret أصبح TFCRM-only secret.
+   - عند إنشاء/مزامنة Instance، TFCRM يرسل:
+     x-tfcrm-webhook-secret
+     داخل Evolution webhook custom headers.
+   - Inbound webhook يقبل الـ custom header بمقارنة timing-safe.
+   - Legacy x-evolution-signature يبقى fallback فقط.
+   - عند غياب delivery-id يتم إنشاء idempotency ID من SHA-256 للـ raw body.
+   - أي apikey/token داخل payload يتم redaction قبل التخزين.
+   - إعداد Webhook الرسمي يستخدم:
+     byEvents: false
+     base64: false
+     headers: {...}
+   - Managed Setup لا يكتب Evolution .env ولا يغير API Token ولا يعمل restart لـ Evolution.
+   - Rotate يدور TFCRM webhook auth secret فقط.
+
+8) ممنوع:
+   - migrations
+   - تعديل Database
+   - تعديل Evolution source
+   - docker restart
+   - restart لـ tfcrm-evolution-api
+   - تغيير AUTHENTICATION_API_KEY داخل Evolution
+
+9) شغّل TypeScript check فقط إذا كان سريعًا:
+   npx tsc --noEmit
+
+   لو فيه baseline errors قديمة، المطلوب ZERO NEW ERRORS في الملفات الثلاثة المعدلة.
+
+10) شغّل:
+    npm run build
+
+11) أعد تشغيل خدمة TFCRM فقط.
+    لا تفترض اسم PM2 process.
+    استخرج العملية التي cwd الخاص بها /var/www/TFCRM واعمل restart لها فقط.
+    ممنوع restart لـ tfcrm-evolution-api أو Evolution container.
+
+12) اختبر:
+    curl -sS -o /tmp/evo-root.out -w "%{http_code}\n" http://127.0.0.1:8080/
+    المطلوب HTTP 200.
+    لا تطبع أي credentials.
+
+13) من واجهة TFCRM:
+    Settings > إعدادات واتساب
+
+    Base URL:
+    http://127.0.0.1:8080
+
+    إذا API Token محفوظ بالفعل:
+    - لا تغيّره.
+    - استخدم "إكمال الربط تلقائيًا".
+    - TFCRM يولّد Webhook Auth Secret داخلي ويضبطه على الـ Instances.
+
+14) بعد الربط:
+    - اختبار الاتصال
+    - تحديث الحالة
+    - تأكد Evolution API = متاحة
+    - تأكد عدد Instances يظهر
+    - لو فيه Instance موجود، Sync مرة واحدة
+    - أرسل رسالة WhatsApp تجريبية وتأكد أنها تدخل Inbox
+
+15) لا تطبع:
+    API Token
+    Webhook Auth Secret
+    WA_GATEWAY_INTEGRATION_SECRET
+    AUTH_SETTINGS_ENCRYPTION_KEY
+
+الرد النهائي المطلوب فقط:
+
+PASS/FAIL:
+MODIFIED_FILES:
+ENV_LOOPBACK_POLICY:
+TSC_NEW_ERRORS:
+BUILD:
+TFCRM_RESTART:
+EVOLUTION_ROOT_HTTP:
+EVOLUTION_AUTH_FETCH_INSTANCES:
+WEBHOOK_CUSTOM_HEADER_CONFIGURED:
+EVOLUTION_CONTAINER_NOT_TOUCHED:
+DB_NOT_TOUCHED:
+NOTES:
