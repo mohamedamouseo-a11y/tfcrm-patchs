@@ -1,0 +1,4 @@
+TFCRM Tara AI Providers Schema Diagnostic V1
+==============================================
+Read-only diagnosis for tara_ai_providers schema drift.
+No DB writes, no migrations, no source changes, no restarts, no provider API calls, no secret output.

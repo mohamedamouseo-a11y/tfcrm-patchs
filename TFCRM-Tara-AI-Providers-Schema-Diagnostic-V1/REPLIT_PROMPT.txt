@@ -1,0 +1,74 @@
+نفّذ Diagnostic READ-ONLY فقط لمشكلة تبويب "مفاتيح الذكاء" في تارا.
+
+الخطأ الحالي يبدأ بـ:
+Failed query: insert into `tara_ai_providers` ...
+
+Patch:
+TFCRM-Tara-AI-Providers-Schema-Diagnostic-V1
+
+ادخل:
+cd /var/www/TFCRM
+
+انسخ الملف:
+diagnose_tfcrm_tara_ai_providers_schema_v1.mjs
+إلى root المشروع ثم شغله فقط:
+
+node diagnose_tfcrm_tara_ai_providers_schema_v1.mjs
+
+قواع� صارمة:
+- READ-ONLY فقط.
+- ممنوع ALTER / CREATE / DROP / RENAME.
+- ممنوع INSERT / UPDATE / DELETE.
+- ممنوع أي Migration أو db:push.
+- ممنوع تعديل أي Source File.
+- ممنوع npm build أو tsc.
+- ممنوع PM2/Docker/Evolution restart.
+- ممنوع تعديل أو إدخال Agnes/OpenAI/Gemini/Claude API keys.
+- ممنوع استدعاء Provider APIs.
+- لا تطبع DATABASE_URL أو DB password أو api_key_encrypted أو أي Secret.
+- لا تستخدم server/db.ts أو getDb()؛ استخدم direct read-only connection فقط.
+
+افحص فقط:
+- تعريف taraAiProviders في drizzle/schema.ts.
+- الملفات التي تشير إلى tara_ai_providers.
+- هل الجدول موجود.
+- Engine/Collation.
+- الأعمدة الحالية بالترتيب وأنواعها/defaults/nullability.
+- الفرق عن الأعمدة المطلوبة:
+  id, tenant_key, provider, enabled, is_primary, fallback_priority, api_key_encrypted, base_url, model, last_test_status, last_test_message, last_test_at, updated_by, created_at, updated_at
+- الـ indexes ومقارنتها بـ:
+  PRIMARY(id)
+  UNIQUE uq_tara_ai_providers_tenant_provider(tenant_key, provider)
+  idx_tara_ai_providers_order(tenant_key, enabled, is_primary, fallback_priority)
+- COUNT(*)
+- Sample آمن بدون api_key_encrypted
+- SELECT smoke فقط، بدون INSERT.
+
+لو الجدول ناقص/قديم لا تصلحه. فقط اطبع الفرق.
+
+بعد التشخيص احذف الملف المؤقت فقط:
+rm -f /var/www/TFCRM/diagnose_tfcrm_tara_ai_providers_schema_v1.mjs
+
+وابعتلي الناتج كامل من:
+TFCRM_TARA_AI_PROVIDERS_SCHEMA_DIAGNOSTIC_V1
+إلى:
+END_TFCRM_TARA_AI_PROVIDERS_SCHEMA_DIAGNOSTIC_V1
+
+وفي الآخر:
+PASS/FAIL:
+TABLE_EXISTS:
+ACTUAL_COLUMNS:
+MISSING_COLUMNS:
+UNEXPECTED_COLUMNS:
+ACTUAL_INDEXES:
+INDEX_ISSUES:
+ROW_COUNT:
+CURRENT_SOURCE_SELECT_SMOKE:
+DIAGNOSIS_HINT:
+DB_SCHEMA_CHANGED:
+DB_DATA_CHANGED:
+TFCRM_SOURCE_CHANGED:
+PM2_RESTARTED:
+DOCKER_TOUCHED:
+PROVIDER_API_CALLED:
+NOTES:
