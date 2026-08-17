@@ -1,0 +1,202 @@
+      serverCredentialsPresent: apiTokenPresent,
+    };
+  } catch (error) {
+    const safe = safeManagedError(error);
+    return {
+      authorized: true,
+      available: false,
+      reason: safe.message,
+      baseUrl: MANAGED_BASE_URL,
+      serverCredentialsPresent: false,
+    };
+  }
+}
+
+export async function manageEvolutionCredentials'''
+t, n = capability_pattern.subn(capability_repl, t, count=1)
+if n != 1:
+    fail(f"managed:replace capability: expected 1 match, found {n}")
+
+manage_pattern = re.compile(
+    r'export async function manageEvolutionCredentials\(operation: ManagedOperation\) \{.*?\n\}\n\nexport function getManagedSetupError',
+    re.S,
+)
+manage_repl = '''export async function manageEvolutionCredentials(operation: ManagedOperation) {
+  assertManagedPreconditions();
+  await enforceRateLimit();
+
+  const snapshot = await getWAGatewayCredentialSnapshot();
+  if (!isManagedCredentialValid(snapshot.apiToken)) {
+    throw new ManagedSetupError(
+      "EVOLUTION_API_KEY_REQUIRED",
+      "Save the existing Evolution API API Token in TCRM before completing the Docker integration.",
+    );
+  }
+
+  const apiToken = snapshot.apiToken!;
+  await verifyEvolution(apiToken);
+
+  // Evolution API v2.3.7 does not consume WEBHOOK_SIGNING_SECRET from .env.
+  // The webhook secret is owned by TFCRM and is sent to Evolution through the
+  // supported per-instance custom webhook headers. Never restart or rewrite the
+  // Docker Evolution service just to rotate this TFCRM webhook credential.
+  const webhookSecret =
+    operation === "generate" && isManagedCredentialValid(snapshot.webhookSecret)
+      ? snapshot.webhookSecret!
+      : crypto.randomBytes(32).toString("hex");
+
+  try {
+    await applyManagedWAGatewayCredentials({
+      enabled: true,
+      baseUrl: MANAGED_BASE_URL,
+      apiToken,
+      webhookSecret,
+    });
+  } catch {
+    throw new ManagedSetupError(
+      "TCRM_SETTINGS_SAVE_FAILED",
+      "Evolution API is reachable, but TCRM could not save the encrypted integration credentials.",
+    );
+  }
+
+  const webhookSync = await configureAllWAGatewayWebhooks().catch((error) => ({
+    total: 0,
+    configured: 0,
+    results: [
+      {
+        sessionId: 0,
+        instanceName: "",
+        configured: false,
+        warnings: [String((error as Error)?.message || error)],
+      },
+    ],
+  }));
+
+  await setSettingValue(LAST_SUCCESS_KEY, new Date().toISOString()).catch(() => {});
+  return {
+    success: true as const,
+    operation,
+    baseUrl: MANAGED_BASE_URL,
+    credentialsConfigured: true as const,
+    adoptedExisting: true as const,
+    evolutionRestarted: false as const,
+    webhookInstancesConfigured: webhookSync.configured,
+    webhookInstancesTotal: webhookSync.total,
+    completedAt: new Date().toISOString(),
+  };
+}
+
+export function getManagedSetupError'''
+t, n = manage_pattern.subn(manage_repl, t, count=1)
+if n != 1:
+    fail(f"managed:replace manageEvolutionCredentials: expected 1 match, found {n}")
+
+patched["managed"] = t
+
+# ---------------------------------------------------------------------------
+# 3) client/src/components/WAGatewaySettingsTab.tsx
+# ---------------------------------------------------------------------------
+t = patched["ui"]
+
+replacements = [
+    (
+        'subtitle: "اربط TCRM بخدمة Evolution API 2.3.7 Security v6 لإدارة أكثر من رقم واستقبال الرسائل الموقعة.",',
+        'subtitle: "اربط TCRM بخدمة Evolution API 2.3.7 لإدارة أكثر من رقم واستقبال Webhooks موثقة عبر Custom Header.",',
+    ),
+    ('autoConfigure: "توليد وربط تلقائي",', 'autoConfigure: "إكمال الربط تلقائيًا",'),
+    (
+        'autoConfigureDescription: "سيقوم TCRM بتوليد بيانات آمنة أو اعتماد البيانات الموجودة على السيرفر، ثم يحفظها مشفرة ويختبر الاتصال.",',
+        'autoConfigureDescription: "سيعتمد TCRM الـ API Token المحفوظ، ويولّد سر توثيق Webhook داخل TCRM، ثم يضبطه تلقائيًا على الـ Instances بدون تعديل أو إعادة تشغيل Evolution API.",',
+    ),
+    (
+        'rotateDescription: "سيتم استبدال API Token وWebhook Secret وإعادة تشغيل Evolution API. أي تكامل خارجي يستخدم البيانات القديمة سيتوقف.",',
+        'rotateDescription: "سيتم تدوير سر توثيق Webhook الخاص بـ TCRM وإعادة ضبطه على الـ Instances. لن يتم تغيير API Token أو إعادة تشغيل Evolution API.",',
+    ),
+    ('secret: "Webhook Secret",', 'secret: "Webhook Auth Secret",'),
+    (
+        'inboundNotReady: "يعمل تلقائيًا بعد ضبط نفس Webhook Signing Secret في Evolution API وTCRM.",',
+        'inboundNotReady: "يعمل تلقائيًا عندما يرسل Evolution API سر TCRM في الـ Custom Header المخصص للـ Webhook.",',
+    ),
+    (
+        'notesValue: "Evolution API تعمل كخدمة مستقلة. TCRM يدير الأرقام والـQR والمحادثات والإرسال، ويستقبل Webhooks موقعة على /api/wa-gateway/webhook.",',
+        'notesValue: "Evolution API تعمل كخدمة مستقلة. TCRM يدير الأرقام والـQR والمحادثات والإرسال، ويضبط Custom Header آمن على Webhooks المرسلة إلى /api/wa-gateway/webhook.",',
+    ),
+    (
+        'tokenRule: "API Key وWebhook Secret يتم حفظهما مشفرين داخل TCRM ولا يصلان للواجهة.",',
+        'tokenRule: "API Key وWebhook Auth Secret يتم حفظهما مشفرين داخل TCRM ولا يصلان للواجهة.",',
+    ),
+    (
+        'subtitle: "Connect TCRM to Evolution API 2.3.7 Security v6 for multiple numbers, signed webhooks, inbox and sending.",',
+        'subtitle: "Connect TCRM to Evolution API 2.3.7 for multiple numbers with authenticated custom-header webhooks, inbox and sending.",',
+    ),
+    ('autoConfigure: "Generate & Configure",', 'autoConfigure: "Complete integration",'),
+    (
+        'autoConfigureDescription: "TCRM will generate secure credentials or adopt the existing server credentials, store them encrypted, and verify the connection.",',
+        'autoConfigureDescription: "TCRM will keep the saved Evolution API token, generate a TFCRM webhook authentication secret, and apply it to existing instances without changing or restarting Evolution API.",',
+    ),
+    (
+        'rotateDescription: "The API token and webhook secret will be replaced and Evolution API will restart. External integrations using the old credentials will stop working.",',
+        'rotateDescription: "Only the TFCRM webhook authentication secret will rotate and be re-applied to the instances. The Evolution API token is not changed and Evolution API is not restarted.",',
+    ),
+    ('secret: "Webhook Secret",', 'secret: "Webhook Auth Secret",'),
+    (
+        'inboundNotReady: "Enabled automatically when the same webhook signing secret is configured in Evolution API and TCRM.",',
+        'inboundNotReady: "Enabled automatically when Evolution API sends the TFCRM secret through the configured custom webhook header.",',
+    ),
+    (
+        'notesValue: "Evolution API stays as a separate service. TCRM manages accounts, QR, inbox and sending through signed webhooks.",',
+        'notesValue: "Evolution API stays as a separate service. TCRM manages accounts, QR, inbox and sending and authenticates inbound webhooks with a custom header.",',
+    ),
+    (
+        'tokenRule: "The API key and webhook secret are encrypted in TCRM and never exposed to the browser.",',
+        'tokenRule: "The API key and webhook authentication secret are encrypted in TCRM and never exposed to the browser.",',
+    ),
+]
+
+for old, new in replacements:
+    if old not in t:
+        fail(f"ui copy block not found: {old[:80]}")
+    t = t.replace(old, new, 1)
+
+patched["ui"] = t
+
+# ---------------------------------------------------------------------------
+# Validate all replacements before writing
+# ---------------------------------------------------------------------------
+checks = [
+    ("integration", 'const WEBHOOK_AUTH_HEADER = "x-tfcrm-webhook-secret";'),
+    ("integration", 'healthEndpoint: baseUrl ? `${baseUrl}/` : ""'),
+    ("integration", 'headers: { [WEBHOOK_AUTH_HEADER]: webhookSecret }'),
+    ("integration", 'const customHeaderSecret = String(headers[WEBHOOK_AUTH_HEADER] || "")'),
+    ("integration", 'export async function configureAllWAGatewayWebhooks()'),
+    ("managed", 'return axios.get(`${MANAGED_BASE_URL}/`, {'),
+    ("managed", 'evolutionRestarted: false as const'),
+    ("managed", 'configureAllWAGatewayWebhooks'),
+    ("ui", 'secret: "Webhook Auth Secret"'),
+]
+for key, marker in checks:
+    if marker not in patched[key]:
+        fail(f"post-patch validation missing [{key}]: {marker}")
+
+if "/healthz" in patched["managed"]:
+    fail("managed service still contains /healthz")
+if "Set the same 32+ character WEBHOOK_SIGNING_SECRET in Evolution API and TCRM." in patched["integration"]:
+    fail("unsupported WEBHOOK_SIGNING_SECRET instruction still present")
+
+for name, path in TARGETS.items():
+    if patched[name] == originals[name]:
+        fail(f"no changes generated for {name}")
+
+# Write only after all checks pass.
+for name, path in TARGETS.items():
+    path.write_text(patched[name], encoding="utf-8")
+
+print("TFCRM_EVOLUTION_V237_COMPAT_PATCH_APPLIED")
+print("MODIFIED_FILES:")
+for path in TARGETS.values():
+    print(f"- {path.relative_to(ROOT)}")
+print("DB_NOT_TOUCHED: YES")
+print("EVOLUTION_SOURCE_NOT_TOUCHED: YES")
+print("EVOLUTION_CONTAINER_NOT_RESTARTED_BY_PATCH: YES")
+print("EXPECTED_BASE_URL: http://127.0.0.1:8080")
+print("WEBHOOK_AUTH: x-tfcrm-webhook-secret custom header + legacy HMAC fallback")
