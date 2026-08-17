@@ -1,0 +1,70 @@
+TFCRM Tara Scope Schema Fix V1
+================================
+
+Confirmed live diagnostic
+-------------------------
+Current live table:
+tara_moderator_account_scopes
+
+Legacy columns:
+- id
+- moderator_id
+- scope_type
+- scope_id
+- created_at
+
+Live indexes:
+- PRIMARY(id)
+
+Live exact row count from diagnostic context:
+0
+
+Current TFCRM schema expects:
+- id INT AUTO_INCREMENT NOT NULL
+- user_id INT NOT NULL
+- platform VARCHAR(64) NOT NULL
+- account_id VARCHAR(255) NOT NULL
+- created_by INT NULL
+- created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+Indexes expected by current source:
+- PRIMARY(id)
+- UNIQUE uq_tara_moderator_scope(user_id, platform, account_id)
+- idx_tara_moderator_scope_user(user_id)
+
+Why the existing project migration is insufficient
+--------------------------------------------------
+scripts/apply-tara-production-hardening-v1-item3-migration.ts uses:
+CREATE TABLE IF NOT EXISTS tara_moderator_account_scopes (...)
+
+Because the legacy table already exists, CREATE TABLE IF NOT EXISTS does not
+convert its legacy columns.
+
+Patch behavior
+--------------
+Default mode is DRY RUN.
+
+Apply mode:
+node apply_tfcrm_tara_scope_schema_fix_v1.mjs --apply
+
+The patch:
+- requires exact legacy schema
+- requires exact row count = 0
+- requires only PRIMARY(id) on the legacy table
+- acquires an advisory MySQL lock
+- re-checks schema and row count
+- performs one ALTER TABLE only
+- verifies the exact current schema
+- runs the previously failing Tara query as a smoke test
+
+Safety
+------
+- No DROP TABLE
+- No CREATE TABLE
+- No RENAME TABLE
+- No INSERT / UPDATE / DELETE
+- No source changes
+- No general migrations
+- No TFCRM restart
+- No Evolution changes/restart
+- No WhatsApp account/instance creation
