@@ -1,0 +1,86 @@
+طبّق Patch: TFCRM-Smart-Search-Phase5A-Local-Navigation-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase5A-Local-Navigation-V1
+
+Target project:
+/var/www/TFCRM
+
+السياق:
+Phase 5 Audit كشف 51 ملف UI فيه Search signals، و49 لسه محتاجة Migration. لا نعمل Blind rewrite لكل الملفات مرة واحدة.
+Phase 5A يرحّل فقط Searches الآمنة من نوع NAVIGATION وSETTINGS إلى نفس قدرات Smart Search:
+P1 normalization + P2 fuzzy + P3 suggestions + P4 voice.
+
+Prerequisites:
+- Phase 4 موجودة في Client Pool.
+- Settings Edge Autofill Guard V2 موجودة؛ ممنوع إرجاع Settings Search إلى input عادي.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase5A-Local-Navigation-V1
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) cd /var/www/TFCRM
+5) NODE_OPTIONS=--max-old-space-size=3072 npm run build
+6) بعد نجاح Build فقط، حدد PM2 process التي pm_cwd = /var/www/TFCRM بالضبط واعمل Restart لها فقط.
+7) تحقق online وHTTP 200.
+
+المطلوب التحقق منه Live:
+A) Navigation/Menu Search:
+- افتح القوائم.
+- عربي: ابحث باسم قائمة بألف مختلفة/تشكيل أو typo بسيط؛ لازم يفلتر بشكل صحيح.
+- English: جرب case مختلف وtypo بسيط.
+- زر Mic يظهر إذا browser يدعم SpeechRecognition.
+- Voice transcript يدخل نفس menuSearch.
+- القائمة نفسها تعتبر live suggestion set permission-aware لأنها مبنية أصلًا من الروابط الظاهرة للمستخدم؛ لا تضف روابط خارج صلاحياته.
+
+B) Settings Search:
+- تأكد أن Edge Autofill bug لم ترجع وأن البريد لا يُحقن بعد Ctrl+F5.
+- Arabic normalization وEnglish case-insensitive شغالين.
+- typo بسيط يجيب Tab قريب.
+- بعد حرفين تظهر بحد أقصى 6 Suggestions من Settings tabs المسموح بها فقط.
+- اختيار Suggestion يملأ البحث.
+- Mic يظهر إذا مدعوم وVoice transcript يدخل نفس settingsSearch.
+
+C) Regression:
+- Client Pool P1/P2/P3/P4 تظل شغالة.
+- Permissions والModule visibility لا تتغير.
+
+ممنوع تمامًا:
+- db:push أو migrations أو schema changes.
+- تعديل server/db.ts أو server routers في Phase 5A.
+- تعديل GlobalSearch/BD/WhatsApp/campaign searches في Phase 5A؛ دول Phase 5B لأنهم SERVER_DATA/GLOBAL.
+- Restart لـ Evolution أو WhatsApp أو TOS أو أي PM2 process خارج /var/www/TFCRM.
+- إصلاح baseline errors غير متعلقة بالملفات المعدلة.
+
+الملفات المسموح تعديلها فقط:
+- client/src/components/CRMLayout.tsx
+- client/src/pages/AdminSettings.tsx
+- client/src/lib/smartSearchClient.ts
+
+لو APPLY أو Build فشل، لا تعمل Fix تلقائي. ارجع بالخطأ والنطاق بالضبط.
+
+الرد النهائي:
+PASS/FAIL:
+PATCH_APPLIED:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+TFCRM_HTTP:
+NAV_NORMALIZATION:
+NAV_FUZZY:
+NAV_VOICE:
+NAV_PERMISSION_SCOPE:
+SETTINGS_AUTOFILL_REGRESSION:
+SETTINGS_NORMALIZATION:
+SETTINGS_FUZZY:
+SETTINGS_SUGGESTIONS:
+SETTINGS_VOICE:
+CLIENT_POOL_REGRESSION:
+FILES_CHANGED:
+DB_CHANGED:
+SERVER_CHANGED:
+OTHER_PM2_TOUCHED:
+NOTES:
