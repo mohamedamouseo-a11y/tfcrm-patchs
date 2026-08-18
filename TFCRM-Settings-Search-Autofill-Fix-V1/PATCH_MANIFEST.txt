@@ -1,0 +1,30 @@
+Patch: TFCRM-Settings-Search-Autofill-Fix-V1
+
+Purpose:
+Prevent Microsoft Edge / browser password manager from injecting a saved email into the Admin Settings search input after page reload.
+
+Target file:
+client/src/pages/AdminSettings.tsx
+
+Behavior:
+- Search input becomes type="search".
+- Adds a unique non-credential field name.
+- Adds autocomplete/password-manager ignore hints.
+- Keeps input readonly until the user interacts with it, then search works normally.
+- Does not modify Smart Search Phase 1.
+- Does not touch DB/schema/migrations/permissions/routes.
+
+Apply:
+python3 APPLY_PATCH.py /var/www/TFCRM
+
+Verify:
+1) Open /settings.
+2) Reload the page.
+3) Confirm no saved email appears in the Settings search field.
+4) Click/tap the search field and confirm typing/filtering still works.
+5) Optionally run: npm run check
+
+Files changed by patch:
+- client/src/pages/AdminSettings.tsx
+
+DB_CHANGED=NO
