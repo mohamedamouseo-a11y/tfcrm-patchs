@@ -1,0 +1,138 @@
+طبّق Patch: TFCRM-Smart-Search-Phase5B1-Global-BD-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase5B1-Global-BD-V1
+
+Target project:
+/var/www/TFCRM
+
+الهدف:
+تعميم Smart Search P1/P2/P3/P4 على أول Batch من Searches المعتمدة على Server/Data:
+- Global Search
+- BD Companies
+- BD Contacts
+- BD Deals
+
+Prerequisites:
+- server/utils/smartSearch.ts يحتوي scoreFuzzySearchRecord.
+- client/src/hooks/useSmartSearchVoice.ts يحتوي useSmartSearchVoice.
+- client/src/lib/smartSearchClient.ts يحتوي smartSearchTextMatches.
+لو أي prerequisite ناقص: توقف وارجع FAIL، بدون أي تعديل يدوي.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase5B1-Global-BD-V1
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) cd /var/www/TFCRM
+5) إذا كان server/utils/smartSearch.test.ts موجودًا شغّل:
+   npx vitest run server/utils/smartSearch.test.ts
+6) شغّل:
+   NODE_OPTIONS=--max-old-space-size=3072 npm run build
+7) لا تعمل Restart لو الـBuild فشل.
+8) بعد نجاح الـBuild فقط: حدد PM2 process/processes التي pm_cwd الخاص بها يساوي /var/www/TFCRM بالضبط واعمل Restart لها فقط.
+9) تحقق أن TFCRM رجع online وأن HTTP على الخدمة يرجع 200.
+
+المطلوب من الباتش:
+A) Global Search:
+- P1 Arabic/English normalization على Server.
+- P2 fuzzy fallback فقط لو exact/normalized result لنوع النتيجة = 0.
+- أقصى fuzzy candidates = 500 لكل نوع.
+- نفس النتائج المجمعة Deals / Companies / Contacts تظل هي Suggestions الحالية.
+- إضافة Mic بنفس Browser SpeechRecognition المستخدم سابقًا؛ transcript يدخل نفس q state.
+- الحفاظ على owner scope الحالي للـbd_rep وbd_viewer في Deals.
+
+B) Companies:
+- P1 normalized server search على name/domain.
+- P2 fuzzy fallback بحد أقصى 1000 candidate.
+- الحفاظ على country filter + limit + offset + total.
+- P3 suggestions بحد أقصى 6 من نفس server results، بدون API إضافي.
+- P4 mic -> نفس search state.
+
+C) Contacts:
+- P1 normalized server search على fullName/email/phone.
+- P2 fuzzy fallback بحد أقصى 1000 candidate.
+- numeric-only typo مثل رقم هاتف خاطئ لا يعمل له fuzzy.
+- الحفاظ على companyId filter + limit + offset + total.
+- P3 max 6 suggestions من نفس results.
+- P4 mic -> نفس search state.
+
+D) Deals:
+- Server list endpoint: normalized/fuzzy title search مع الحفاظ على pipelineId/stageId/ownerId/limit/offset.
+- Kanban search: P1/P2 local على title + companyName من البيانات المحملة.
+- P3 max 6 suggestions من loaded deals.
+- P4 mic -> نفس search state.
+
+اختبار Live بعد النشر:
+1) Global Search (Ctrl/Cmd + K):
+   - عربي: جرّب اختلافات الألف/التشكيل لاسم موجود.
+   - English: case-insensitive.
+   - typo بسيط لصفقة/شركة/Contact موجود.
+   - جرّب Mic بالعربي والإنجليزي.
+2) Companies:
+   - exact ثم typo بسيط.
+   - تأكد Suggestions بعد حرفين وبحد أقصى 6.
+   - جرّب Mic.
+   - غيّر country filter وتأكد أنه ما زال محترمًا.
+3) Contacts:
+   - exact ثم typo في الاسم.
+   - جرّب رقم هاتف صحيح.
+   - جرّب رقم هاتف به رقم خاطئ وتأكد أنه لا fuzzy-match.
+   - Suggestions + Mic.
+4) Deals Kanban:
+   - exact وtypo في title أو companyName.
+   - Suggestions + Mic.
+   - تأكد pipeline/stage/drag-drop لم تتأثر.
+5) Permission scope:
+   - بحساب bd_rep أو bd_viewer: Global Search Deals لا تعرض صفقات خارج owner scope الحالي.
+
+ممنوع تمامًا:
+- db:push أو migrations أو schema changes.
+- تعديل Permissions أو Roles.
+- توسيع scope المستخدم عما كان عليه قبل الباتش.
+- إضافة AI/Semantic Search أو ElevenLabs.
+- تعديل WhatsApp/Campaigns في هذا الـBatch؛ دول Batch لاحقة من Phase 5B.
+- Restart لـEvolution أو WhatsApp أو TOS أو أي PM2 process خارج /var/www/TFCRM.
+- إصلاح baseline errors خارج الملفات المعدلة.
+
+الملفات المسموح تعديلها فقط:
+- client/src/components/GlobalSearch.tsx
+- client/src/pages/BD/CompaniesList.tsx
+- client/src/pages/BD/ContactsList.tsx
+- client/src/pages/BD/DealsKanban.tsx
+- server/routes/bd/search.ts
+- server/routes/bd/companies.ts
+- server/routes/bd/contacts.ts
+- server/routes/bd/deals.ts
+
+لو Apply/Test/Build فشل، لا تعمل Fix إضافي تلقائيًا. ارجع بالناتج كاملًا.
+
+الرد النهائي:
+PASS/FAIL:
+PREREQUISITES:
+PATCH_APPLIED:
+SMART_SEARCH_TESTS:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+TFCRM_HTTP:
+GLOBAL_NORMALIZATION:
+GLOBAL_FUZZY:
+GLOBAL_SUGGESTIONS:
+GLOBAL_VOICE:
+GLOBAL_PERMISSION_SCOPE:
+COMPANIES_SEARCH:
+COMPANIES_FILTER_SCOPE:
+CONTACTS_SEARCH:
+NUMERIC_NO_FUZZY:
+CONTACTS_FILTER_SCOPE:
+DEALS_SEARCH:
+DEALS_SUGGESTIONS:
+DEALS_FILTER_SCOPE:
+FILES_CHANGED:
+DB_CHANGED:
+SCHEMA_CHANGED:
+OTHER_PM2_TOUCHED:
+NOTES:
