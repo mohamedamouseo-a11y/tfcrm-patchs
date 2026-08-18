@@ -1,0 +1,60 @@
+نفّذ Audit شامل لكل Search داخل TFCRM قبل تحويل المراحل 1-4 إلى System-wide.
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase5-Systemwide-Audit-V1
+
+Target project:
+/var/www/TFCRM
+
+الهدف:
+حصر كل Search حقيقي في النسخة الحية من TFCRM وتصنيفه قبل تطبيق Smart Search System-wide.
+هذه خطوة Audit فقط ولا تعدّل أي Source أو DB أو PM2.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase5-Systemwide-Audit-V1
+3) python3 AUDIT_SEARCHES.py /var/www/TFCRM /tmp/TFCRM_SMART_SEARCH_SYSTEMWIDE_AUDIT.md
+4) اعرض محتوى التقرير كاملًا:
+   cat /tmp/TFCRM_SMART_SEARCH_SYSTEMWIDE_AUDIT.md
+5) لا تعمل Build ولا Restart ولا Source edits.
+
+مطلوب من التقرير:
+- عدد ملفات الواجهة التي تحتوي Search signals.
+- الملفات التي عليها Phase 4 بالفعل.
+- الملفات التي ما زالت تحتاج Migration.
+- كل Search UI path + line + snippet.
+- Search-related server paths.
+- عدم اعتبار أي Search migrated لمجرد وجود Mic؛ لازم نعرف هل هو SERVER_DATA أو LOCAL_COLLECTION أو NAVIGATION أو SETTINGS أو GLOBAL.
+
+التصنيف المطلوب لكل Search لاحقًا:
+- SERVER_DATA: بحث يعتمد على API/DB.
+- LOCAL_COLLECTION: بحث داخل بيانات موجودة في الواجهة.
+- NAVIGATION: بحث القوائم/الموديولات/الروابط.
+- SETTINGS: بحث داخل الإعدادات.
+- GLOBAL: Global Search على مستوى النظام.
+
+بعد الـAudit فقط، لا تنفذ Migration تلقائيًا. أرسل التقرير كما هو حتى يتم بناء Patch System-wide النهائي بطريقة آمنة.
+
+ممنوع تمامًا:
+- db:push
+- migrations
+- schema changes
+- source edits
+- npm build
+- PM2 restart
+- Evolution/WhatsApp/TOS changes
+
+الرد النهائي:
+PASS/FAIL:
+AUDIT_REPORT:
+UI_SEARCH_FILES:
+PHASE4_MARKED_UI_FILES:
+PENDING_UI_FILES:
+SERVER_SEARCH_FILES:
+SOURCE_CHANGED:
+DB_CHANGED:
+PM2_TOUCHED:
+NOTES:
