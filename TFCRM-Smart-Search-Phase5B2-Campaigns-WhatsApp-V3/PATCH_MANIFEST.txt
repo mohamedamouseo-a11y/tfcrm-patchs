@@ -1,0 +1,20 @@
+TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V3
+
+Purpose:
+- Verification/deploy fix after V2 successfully applied the feature but Vitest rejected the client-side test path.
+
+Changes:
+- Adds server/utils/smartSearchCollection.test.ts through the patch.
+- The test imports the already-applied client/src/lib/smartSearchCollection.ts implementation.
+- No Phase5B2 feature code is reapplied or rewritten.
+
+Verification prerequisites:
+- Meta, Google Ads, LinkedIn, Snapchat, TikTok, WhatsApp Inbox, WhatsApp Forward and WhatsApp server must already carry the Phase5B2 marker.
+- TikTok must contain smartFilterCollection(rows, search...).
+- WhatsApp server must contain normalized exact + bounded fuzzy resolver and candidate limit 500.
+
+Safety:
+- No DB/schema/migrations.
+- No Evolution changes.
+- No feature rollback/reset.
+- No source changes outside the new server-compatible collection test.
