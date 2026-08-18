@@ -1,0 +1,79 @@
+طبّق Patch: TFCRM-Smart-Search-Phase3-Autocomplete-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase3-Autocomplete-V1
+
+Target project:
+/var/www/TFCRM
+
+Prerequisite:
+لازم TFCRM-Smart-Search-Phase2-Fuzzy-V1 يكون مطبق بالفعل. لو Phase 2 marker غير موجود، لا تعمل أي تعديل يدوي؛ ارجع FAIL.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase3-Autocomplete-V1
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) cd /var/www/TFCRM
+5) npm run build
+6) بعد نجاح الـBuild فقط: حدّد PM2 process/ processes التي pm_cwd الخاص بها يساوي /var/www/TFCRM بالضبط، واعمل Restart لها فقط.
+7) تأكد أن TFCRM رجع online وHTTP 200.
+
+المطلوب من Phase 3:
+- Autocomplete/Suggestions داخل Search الخاص بـ Client Pool.
+- يبدأ بعد كتابة حرفين على الأقل.
+- يعرض بحد أقصى 6 اقتراحات.
+- يستخدم نفس نتائج accountManagement.listClients الحالية، بدون API جديد وبدون Query إضافي منفصل للاقتراحات.
+- الاقتراحات لازم تحترم نفس permissions/team/account-manager scope والفلاتر الحالية.
+- Phase 1 normalization وPhase 2 fuzzy يفضلوا كما هم بدون تغيير.
+- اختيار الاقتراح يملأ نفس search input ويشغّل نفس Smart Search.
+- دعم Mouse.
+- دعم Keyboard: ArrowDown / ArrowUp / Enter / Escape.
+- أثناء انتظار debounce/fetch يظهر Loading suggestions بدل بيانات قديمة.
+- لا تعرض contactEmail/phone كـsecondary text في قائمة الاقتراحات؛ استخدم businessProfile/leadName/group/accountManagerName فقط.
+
+ممنوع تمامًا:
+- db:push أو migrations أو schema changes.
+- تعديل server/db.ts أو Smart Search Phase 1/2.
+- إضافة API endpoint جديد.
+- تعديل permissions/routes.
+- إضافة mic أو AI أو semantic search في Phase 3.
+- أي refactor خارج client/src/pages/ClientPool.tsx.
+- Restart لـ Evolution أو WhatsApp أو TOS أو أي PM2 process خارج /var/www/TFCRM.
+- إصلاح أخطاء قديمة خارج الملف المعدل.
+
+اختبر بعد النشر:
+1) افتح Client Pool.
+2) اكتب حرف واحد: لا تظهر Suggestions.
+3) اكتب حرفين أو أكثر من اسم عميل/شركة موجودة: تظهر الاقتراحات.
+4) جرّب Search صحيح ثم typo بسيط وتأكد أن Phase 2 مازال يعمل.
+5) اختر اقتراح بالماوس وتأكد أن الحقل يتم ملؤه والنتائج تتحدث.
+6) جرّب ArrowDown ثم Enter.
+7) جرّب Escape لإغلاق القائمة.
+8) جرّب Account Manager أو role محدود وتأكد أن الاقتراحات لا تعرض أي عميل خارج scope.
+9) تأكد أن تغيير filters يغيّر suggestions بنفس الـscope الحالي.
+
+لو Build أو الاختبار فشل، لا تعمل Fix إضافي تلقائيًا. ارجع بالناتج كامل.
+
+الرد النهائي:
+PASS/FAIL:
+PHASE2_PREREQUISITE:
+PATCH_APPLIED:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+TFCRM_HTTP:
+AUTOCOMPLETE_AFTER_2_CHARS:
+SUGGESTION_LIMIT:
+MOUSE_SELECTION:
+KEYBOARD_SELECTION:
+ESCAPE_CLOSE:
+FUZZY_STILL_WORKS:
+PERMISSION_SCOPE:
+FILTER_SCOPE:
+FILES_CHANGED:
+DB_CHANGED:
+OTHER_PM2_TOUCHED:
+NOTES:
