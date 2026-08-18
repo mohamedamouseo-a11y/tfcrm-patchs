@@ -1,0 +1,48 @@
+TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V2
+
+Purpose:
+- Resume safely from the failed/partial Phase5B2 V1 apply state.
+- Fix the TikTokCampaignsPage.tsx multiline search-filter anchor mismatch.
+- Reuse the V1 target marker so already-applied campaign pages are skipped idempotently.
+- Continue the remaining Meta/TikTok/WhatsApp work without git reset or manual source repair.
+
+Failure addressed:
+- V1 stopped with: TikTokCampaignsPage.tsx: search filter anchor not found.
+- Current TikTok source uses a multiline block:
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    rows = rows.filter(...);
+  }
+- V2 accepts both this multiline form and the compact single-line forms used by other campaign pages.
+
+Scope after successful resume:
+- Meta Campaigns
+- Google Ads Campaigns
+- LinkedIn Campaigns
+- Snapchat Campaigns
+- TikTok Campaigns
+- WhatsApp Inbox Search
+- WhatsApp Forward Search
+
+Capabilities retained:
+- P1 Arabic/English normalization
+- P2 exact-first bounded fuzzy typo fallback
+- P3 suggestions/autocomplete <= 6
+- P4 Browser SpeechRecognition voice-to-same-search-state
+
+WhatsApp safety:
+- Existing session/account/user/filter authorization remains the base scope.
+- Fuzzy only after zero exact hits.
+- Candidate cap 500.
+- Numeric-only fuzzy disabled.
+- Existing message-body exact LIKE preserved.
+- Cursor pagination preserved.
+- No message-send/forward behavior changes.
+
+Recovery safety:
+- DO NOT git reset/checkout/clean the target project before applying V2.
+- The existing partial V1 state is expected and is used as the resume point.
+- V2 does not attribute unrelated pre-existing dirty files to itself.
+- No DB/schema/migrations/db:push.
+- No Evolution configuration or service changes.
+- No restart until tests and build pass.
