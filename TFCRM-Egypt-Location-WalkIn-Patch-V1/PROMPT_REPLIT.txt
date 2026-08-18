@@ -1,0 +1,64 @@
+Apply the attached TFCRM Egypt Location + Walk-in patch to the CURRENT TFCRM project.
+
+BASE REVIEW
+- Reviewed against main commit: 0b77201204fcaa79ccbd43798a7b7678ae2c5a4b.
+- First confirm the current HEAD. If it is newer, DO NOT overwrite newer work; run the patcher's dry-run first and rely on its guarded semantic anchors.
+
+IMPORTANT RULES
+- Do NOT redesign unrelated screens.
+- Do NOT delete, reset, or rewrite existing Lead/Client records.
+- Do NOT replace Campaign attribution with Walk-in. Campaign and Entry Mode are independent dimensions.
+- Keep Super Admin/Admin permissions and unrelated permissions unchanged.
+- Branch create/update is Admin/Super Admin only; normal CRM users may read branch names for existing records and filters.
+- Do NOT run broad/full test suites unless required. Use the minimum checks below to reduce Replit cost.
+- Stop if the patcher reports a missing/ambiguous required anchor. Do not guess or force a structural rewrite.
+
+APPLY
+1. Put `apply_tfcrm_egypt_walkin_patch.py` in the TFCRM project root temporarily.
+2. Confirm HEAD:
+   git rev-parse HEAD
+3. Dry-run first:
+   python3 apply_tfcrm_egypt_walkin_patch.py --root . --dry-run
+4. If dry-run completes without a required-anchor failure, apply:
+   python3 apply_tfcrm_egypt_walkin_patch.py --root .
+5. Apply the idempotent DB migration:
+   npx tsx scripts/apply-crm-egypt-location-walkin-migration.ts
+
+MINIMUM VERIFICATION
+6. Run:
+   npm run check
+   npm run build
+7. If the repository already has baseline TypeScript errors, compare baseline vs candidate and confirm this patch adds ZERO new errors in touched/new files.
+
+SMOKE TESTS
+8. Branches:
+   - Admin Settings > Branches opens.
+   - Create a branch with code + Arabic name + optional English/location/address.
+   - Edit it and toggle Active/Inactive.
+9. Leads:
+   - New Lead phone defaults to Egypt (+20).
+   - Add/edit Governorate, City/Markaz, Area.
+   - Remote lead: Campaign remains required.
+   - Walk-in lead: Branch becomes required; Campaign may be empty.
+   - Campaign + Walk-in can coexist on the same lead.
+   - Filters work for Governorate, City, Area, Entry Mode, Branch and remain compatible with existing filters/URL state.
+   - Lead Profile displays/edits location, Entry Mode and Branch name.
+10. Clients:
+   - Convert/create Client from a Lead and verify Governorate/City/Area/Entry Mode/Branch are preserved.
+   - Client Pool filters work for those fields.
+   - Client Profile displays/edits them and Walk-in requires a Branch.
+   - Client Pool Excel export using current filters accepts the new filters.
+11. Regression:
+   - Existing Campaign/Stage/Owner/SLA filters still work.
+   - Existing historical Saudi-format phone numbers remain normalized safely.
+   - No unrelated TOS/TFS/WhatsApp/Tara/THRS behavior changes.
+
+DELIVERY
+12. Return ONLY a concise report:
+   - HEAD used
+   - changed/new files
+   - migration result
+   - check/build result
+   - smoke-test result
+   - any baseline errors that existed before this patch
+Do not make unrelated changes.

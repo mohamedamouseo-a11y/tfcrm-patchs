@@ -1,0 +1,47 @@
+TFCRM — Egypt Location + Walk-in Patch V1
+Reviewed base: main @ 0b77201204fcaa79ccbd43798a7b7678ae2c5a4b (2026-08-18)
+Patch ID: TFCRM_EGYPT_LOCATION_WALKIN_V1
+
+Scope
+-----
+1. Lead location: Governorate / City or Markaz / Area.
+2. Country remains an internal phone-country value; Lead UI uses Egypt location instead.
+3. New Lead phone defaults to Egypt (+20), with Egypt-first normalization while preserving historical Saudi formats.
+4. Entry Mode is independent from Campaign attribution: WalkIn / Remote.
+5. Walk-in requires selecting a Branch; Campaign stays optional only for Walk-in and required for Remote leads.
+6. Branch Master in Admin Settings: code, Arabic/English name, governorate, city, area, address, active/inactive.
+7. Lead filters: Governorate, City, Area, Entry Mode, Branch; filters stay integrated with existing URL/session behavior.
+8. Client Pool receives the same location/entry fields, validation, display, filters, and Excel-current-filter support.
+9. Lead -> Client automatic conversion preserves location, Entry Mode, and Walk-in Branch.
+10. Lead Profile and Client Profile can display/edit the new fields and show the Branch name.
+11. Historical inactive branches remain readable/filterable; branch create/update stays Admin-only.
+12. Database migration is idempotent and adds indexed fields + crm_branches table without deleting existing data.
+
+Project files created by the patch
+----------------------------------
+- client/src/lib/egypt-locations.ts
+- drizzle/schema_crm_location.ts
+- server/crmLocationRouter.ts
+- client/src/components/CrmLocationFields.tsx
+- client/src/components/CrmLocationFilters.tsx
+- client/src/components/CrmBranchesSettingsTab.tsx
+- scripts/apply-crm-egypt-location-walkin-migration.ts
+
+Existing project files modified by guarded semantic anchors
+-----------------------------------------------------------
+- drizzle/schema.ts
+- server/db.ts
+- server/routers.ts
+- client/src/pages/LeadsList.tsx
+- client/src/pages/LeadProfile.tsx
+- client/src/pages/ClientPool.tsx
+- client/src/pages/ClientProfile.tsx
+- client/src/pages/AdminSettings.tsx
+- server/services/clientPoolExcelExportService.ts
+- client/src/components/clientPool/ClientPoolExcelExportDialog.tsx
+
+Verification performed before packaging
+---------------------------------------
+- Python patcher syntax: PASS (py_compile).
+- Generated new TypeScript/TSX files: syntax parsed with TypeScript 5.8.3; no TS1xxx syntax errors.
+- Full project typecheck/build cannot be executed inside this packaging environment because the connected GitHub repository is not mounted as a local checkout. PROMPT_REPLIT.txt contains the exact minimum verification sequence to run in TFCRM.
