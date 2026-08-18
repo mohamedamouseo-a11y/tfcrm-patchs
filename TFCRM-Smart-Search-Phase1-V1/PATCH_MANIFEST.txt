@@ -1,0 +1,41 @@
+TFCRM Smart Search Phase 1 V1
+
+Purpose:
+Upgrade Client Pool search with a reusable Arabic/English normalization core while preserving current authorization filters, pagination, and Client Pool stats behavior.
+
+Target baseline:
+TFCRM commit 0b77201204fcaa79ccbd43798a7b7678ae2c5a4b
+
+Patch changes:
+- Modifies only the existing Client Pool search block in server/db.ts.
+- Adds server/utils/smartSearch.ts.
+- Adds server/utils/smartSearch.test.ts.
+- Arabic alef normalization: أ / إ / آ / ٱ -> ا.
+- Removes tashkeel/harakat and tatweel.
+- English case-insensitive normalization.
+- Trim and repeated-whitespace normalization.
+- Partial / contains / prefix-compatible matching.
+- Multi-word token matching.
+- Search remains server-side on MySQL/Drizzle.
+- Existing role/team scope and current Client Pool filters remain untouched.
+- Client Pool list and stats continue to share the same condition builder.
+
+Not included:
+- Fuzzy typo tolerance.
+- Transliteration.
+- Autocomplete.
+- Voice/mic search.
+- Semantic/AI ranking.
+
+Apply:
+python3 APPLY_PATCH.py /path/to/TFCRM
+
+Verify:
+npx vitest run server/utils/smartSearch.test.ts
+
+Database schema changes:
+NONE
+
+Implementation reference:
+feature/smart-search-phase1
+ea1d7f9edbd23e12eb07f65fce724da4b052559a

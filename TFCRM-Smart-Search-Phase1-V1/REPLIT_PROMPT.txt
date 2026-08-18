@@ -1,0 +1,42 @@
+طبّق Patch: TFCRM-Smart-Search-Phase1-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase1-V1
+
+Target project:
+/var/www/TFCRM
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase1-V1
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) cd /var/www/TFCRM
+5) npx vitest run server/utils/smartSearch.test.ts
+
+ممنوع أي refactor أو تعديلات خارج الملفات التالية:
+- server/db.ts
+- server/utils/smartSearch.ts
+- server/utils/smartSearch.test.ts
+
+ممنوع db:push أو migrations أو تغيير schema أو restart لـ Evolution/WhatsApp.
+
+المطلوب بعد التطبيق:
+- Arabic alef normalization شغال.
+- إزالة tashkeel/tatweel.
+- English case-insensitive.
+- partial/contains search.
+- multi-word tokens.
+- Client Pool permissions/filters/pagination/stats بدون تغيير.
+
+لو الاختبار فشل، لا تصلح تلقائيًا. ارجع بالناتج كامل.
+
+الرد النهائي:
+PASS/FAIL:
+PATCH_APPLIED:
+TESTS:
+FILES_CHANGED:
+DB_CHANGED:
+NOTES:
