@@ -1,0 +1,90 @@
+طبّق Patch: TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V2
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V2
+
+Target project:
+/var/www/TFCRM
+
+السياق المهم:
+Phase 5B2 V1 فشل أثناء APPLY عند TikTok بالرسالة:
+TikTokCampaignsPage.tsx: search filter anchor not found
+وتوقف قبل tests/build/restart.
+يوجد partial apply متوقع في بعض الملفات. لا تعمل git reset ولا git checkout ولا git clean ولا rollback يدوي.
+V2 مصمم ليكمل من الحالة الجزئية الحالية بشكل idempotent.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V2
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) لو APPLY فشل: توقف فورًا، لا تعمل أي إصلاح يدوي، لا Build، لا Restart.
+5) لو APPLY نجح:
+   cd /var/www/TFCRM
+   npx vitest run client/src/lib/smartSearchCollection.test.ts server/utils/smartSearch.test.ts
+6) لو tests فشلت: توقف، لا Restart.
+7) لو tests نجحت:
+   NODE_OPTIONS=--max-old-space-size=3072 npm run build
+8) لو Build فشل: توقف، لا Restart.
+9) بعد نجاح Build فقط، حدّد PM2 process IDs التي pm_cwd = /var/www/TFCRM بالضبط.
+10) Restart لهذه IDs فقط.
+11) تحقق أنها online وHTTP 200 على 127.0.0.1:3003.
+
+تحقق من:
+- TikTok search تم تحويله إلى SmartSearchField + smartFilterCollection.
+- Meta / Google Ads / LinkedIn / Snapchat / TikTok جميعهم عليهم P1/P2/P3/P4.
+- Suggestions <= 6.
+- Voice transcript يدخل نفس search state.
+- Filters/Sort/Pagination/Access gates محفوظة.
+- WhatsApp Inbox normalized exact + fuzzy fallback.
+- WhatsApp fuzzy candidate cap = 500.
+- WhatsApp numeric-only fuzzy disabled.
+- WhatsApp message-body exact LIKE محفوظ.
+- WhatsApp filter/account/user/session/cursor permissions محفوظة.
+- WhatsApp Forward يستخدم نفس scoped listChatsPage ولا يغير send/forward logic.
+- Client Pool وPhase5A وPhase5B1 لا يحصل لهم regression.
+
+ممنوع:
+- git reset / checkout / clean على /var/www/TFCRM
+- db:push
+- migrations
+- schema changes
+- AI/Semantic Search/ElevenLabs
+- تغيير Evolution
+- Restart لأي PM2 خارج /var/www/TFCRM
+- إصلاح baseline warnings/errors غير مرتبطة
+
+لو Live UI غير متاحة اكتب NOT_TESTED ولا تعتبرها PASS.
+
+الرد النهائي:
+PASS/FAIL:
+V1_PARTIAL_STATE_DETECTED:
+V2_RESUME_APPLIED:
+TIKTOK_ANCHOR_FIXED:
+META_SEARCH:
+GOOGLE_ADS_SEARCH:
+LINKEDIN_SEARCH:
+SNAPCHAT_SEARCH:
+TIKTOK_SEARCH:
+WHATSAPP_SEARCH:
+WHATSAPP_FUZZY_LIMIT:
+WHATSAPP_PERMISSION_SCOPE:
+FORWARD_SEARCH:
+COLLECTION_TESTS:
+SMART_SEARCH_TESTS:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+TFCRM_HTTP:
+CLIENT_POOL_REGRESSION:
+PHASE5A_REGRESSION:
+PHASE5B1_REGRESSION:
+FILES_CHANGED_THIS_ATTEMPT:
+DB_CHANGED:
+SCHEMA_CHANGED:
+EVOLUTION_CHANGED:
+OTHER_PM2_TOUCHED:
+LIVE_UI:
+NOTES:
