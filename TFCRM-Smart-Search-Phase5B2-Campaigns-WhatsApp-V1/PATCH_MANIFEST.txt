@@ -1,0 +1,37 @@
+TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V1
+
+Scope:
+- Meta Campaigns search
+- Google Ads Campaigns search
+- LinkedIn Campaigns search
+- Snapchat Campaigns search
+- TikTok Campaigns search
+- WhatsApp Inbox search
+- WhatsApp Forward dialog search
+
+Capabilities:
+- P1 Arabic/English normalization
+- P2 exact-first bounded typo fallback
+- P3 up to 6 suggestions/autocomplete
+- P4 Browser SpeechRecognition voice-to-the-same-search-state
+
+Shared additions:
+- client/src/lib/smartSearchCollection.ts
+- client/src/lib/smartSearchCollection.test.ts
+- client/src/components/SmartSearchField.tsx
+
+WhatsApp server behavior:
+- Existing session/user/account/filter authorization remains the base condition.
+- Exact search uses normalized Smart Search for chat display name, phone, jid and last-message preview.
+- Existing message-body LIKE remains available on exact path.
+- Fuzzy runs only if exact search has zero hits and query is eligible.
+- Fuzzy candidate set is capped at 500 and uses the same access/filter base conditions.
+- Numeric-only fuzzy stays disabled.
+- Existing cursor pagination is retained by resolving fuzzy IDs into the existing conditions before the normal page query.
+
+Safety:
+- No DB schema/migration/db:push.
+- No Evolution API/service configuration changes.
+- No permission/role expansion.
+- No WhatsApp message sending/forwarding behavior changes; only search input/search matching paths.
+- Existing campaign access gates and non-search filters remain intact.
