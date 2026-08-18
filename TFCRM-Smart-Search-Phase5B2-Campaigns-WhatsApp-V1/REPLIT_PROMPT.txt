@@ -1,0 +1,105 @@
+طبّق Patch: TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V1
+
+Target project:
+/var/www/TFCRM
+
+الهدف:
+تعميم Smart Search P1/P2/P3/P4 على Meta Campaigns وGoogle Ads Campaigns وLinkedIn Campaigns وSnapchat Campaigns وTikTok Campaigns وWhatsApp Inbox Search وWhatsApp Forward Search.
+
+Prerequisites:
+- client/src/lib/smartSearchClient.ts يحتوي smartSearchTextMatches.
+- client/src/hooks/useSmartSearchVoice.ts يحتوي useSmartSearchVoice.
+- server/utils/smartSearch.ts يحتوي scoreFuzzySearchRecord.
+لو أي prerequisite ناقص: توقف وارجع FAIL بدون تعديل يدوي.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase5B2-Campaigns-WhatsApp-V1
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) cd /var/www/TFCRM
+5) npx vitest run client/src/lib/smartSearchCollection.test.ts server/utils/smartSearch.test.ts
+6) NODE_OPTIONS=--max-old-space-size=3072 npm run build
+7) لو الاختبارات أو Build فشلوا: لا تعمل Restart ولا Fix إضافي تلقائي.
+8) بعد نجاح Build فقط، حدّد PM2 process/processes التي pm_cwd = /var/www/TFCRM بالضبط واعمل Restart لها فقط.
+9) تحقق online وHTTP 200 على 127.0.0.1:3003.
+
+تحقق من الحملات الخمس:
+- Arabic/English normalization وEnglish case-insensitive.
+- Fuzzy typo فقط عند عدم وجود exact/normalized result.
+- Suggestions بعد حرفين وبحد أقصى 6.
+- Mic/voice transcript يدخل نفس search state.
+- Filters وSort وPagination وAccess gates الحالية لا تتغير.
+
+تحقق من WhatsApp Inbox:
+- normalized exact للاسم/الرقم/JID/last-message preview.
+- message body exact search القديم يظل موجودًا.
+- fuzzy fallback فقط بعد صفر exact وبحد 500 candidates.
+- نفس session/account/user/filter permissions قبل fuzzy.
+- numeric-only search لا يعمل fuzzy.
+- Suggestions <= 6 وMic على نفس search state.
+- account/unread/assigned/open/closed/archived/chat type/cursor pagination لا تتغير.
+
+تحقق من WhatsApp Forward:
+- يستخدم نفس listChatsPage permission scope.
+- Normalization/Fuzzy + Suggestions <=6 + Mic.
+- selection/maxTargets/retry/forward behavior لا يتغير.
+
+Regression:
+- Client Pool P1-P4.
+- Phase5A Navigation/Settings.
+- Phase5B1 Global/BD.
+- Settings Edge Autofill Guard.
+
+ممنوع:
+- db:push / migrations / schema changes.
+- AI / Semantic Search / ElevenLabs.
+- تغيير Evolution service أو إعداداته.
+- تغيير WhatsApp send/forward logic خارج البحث.
+- Restart لأي PM2 خارج /var/www/TFCRM.
+- إصلاح baseline errors غير مرتبطة.
+
+لو Live Browser غير متاحة سجّل Live UI = NOT_TESTED.
+
+الرد النهائي:
+PASS/FAIL:
+PREREQUISITES:
+PATCH_APPLIED:
+COLLECTION_TESTS:
+SMART_SEARCH_TESTS:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+TFCRM_HTTP:
+META_SEARCH:
+GOOGLE_ADS_SEARCH:
+LINKEDIN_SEARCH:
+SNAPCHAT_SEARCH:
+TIKTOK_SEARCH:
+CAMPAIGN_SUGGESTIONS:
+CAMPAIGN_VOICE:
+CAMPAIGN_PERMISSION_SCOPE:
+WHATSAPP_NORMALIZATION:
+WHATSAPP_FUZZY:
+WHATSAPP_NUMERIC_NO_FUZZY:
+WHATSAPP_SUGGESTIONS:
+WHATSAPP_VOICE:
+WHATSAPP_FILTER_SCOPE:
+WHATSAPP_PAGINATION:
+FORWARD_SEARCH:
+FORWARD_BEHAVIOR_REGRESSION:
+CLIENT_POOL_REGRESSION:
+PHASE5A_REGRESSION:
+PHASE5B1_REGRESSION:
+FILES_CHANGED:
+DB_CHANGED:
+SCHEMA_CHANGED:
+EVOLUTION_CHANGED:
+OTHER_PM2_TOUCHED:
+LIVE_UI:
+NOTES:
