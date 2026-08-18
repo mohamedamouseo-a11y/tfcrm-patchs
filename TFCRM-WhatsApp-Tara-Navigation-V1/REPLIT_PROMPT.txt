@@ -1,0 +1,95 @@
+طبّق Patch:
+TFCRM-WhatsApp-Tara-Navigation-V1
+
+الهدف:
+إظهار "تارا" داخل مجموعة WhatsApp في قائمة TFCRM بنفس ترتيب TTCRM:
+
+WhatsApp
+- Inbox / المحادثات
+- Tara / تارا
+- Accounts & QR / الحسابات و QR
+
+وتفتح تارا من:
+/wa-gateway/tara
+
+مع الاحتفاظ بالمسار القديم:
+/tara
+للتوافق وعدم كسر أي Links قديمة.
+
+المطلوب تعديل ملفين فقط:
+1) client/src/components/CRMLayout.tsx
+2) client/src/App.tsx
+
+مهم:
+- لا تعدل Backend.
+- لا تعدل DB.
+- لا تشغل Migration.
+- لا تعدل Agnes أو أي API Key.
+- لا تعدل Evolution/Docker.
+- لا تغير صلاحيات المستخدمين العامة.
+- تارا داخل WhatsApp تظهر لـ Admin/SuperAdmin فقط في هذا الـ navigation.
+- المسار /tara القديم يظل موجودًا للـ Moderator والتوافق.
+- لا تضف تارا مرتين: داخل mini navigation تكون تحت WhatsApp، واترك Zaghloul في AI.
+- لا تغير تصميم القائمة أو CSS.
+
+نفّذ بأقل تكلفة ممكنة:
+
+cd /var/www/TFCRM
+
+شغّل:
+python3 apply_tfcrm_whatsapp_tara_navigation_v1.py
+
+بعد نجاح الباتش تحقق:
+
+grep -n 'wa-gateway/tara' client/src/components/CRMLayout.tsx client/src/App.tsx
+grep -n 'collapsedGroup === "ai"' -A5 client/src/components/CRMLayout.tsx
+
+المتوقع:
+- /wa-gateway/tara موجود داخل waGatewayHrefs.
+- Tara موجودة بين Inbox و Accounts & QR.
+- موجودة داخل mini WhatsApp submenu.
+- AI mini-group يحتوي Zaghloul فقط.
+- App.tsx يحتوي:
+  <Route path="/wa-gateway/tara" component={TaraAgentPage} />
+- المسار /tara ما زال موجودًا.
+
+بعدها نفّذ build واحد فقط:
+npm run build
+
+لو Build PASS:
+أعد تشغيل TFCRM process فقط من cwd=/var/www/TFCRM.
+ممنوع Restart لـ Evolution.
+
+ثم افتح:
+https://tfcrm.tamiyouz.com/settings?tab=developerHub
+
+اعمل Ctrl+F5 وافتح "All menus".
+
+المطلوب بصريًا:
+WhatsApp
+- Inbox
+- Tara
+- Accounts & QR
+
+اضغط Tara.
+المفروض يفتح:
+https://tfcrm.tamiyouz.com/wa-gateway/tara
+
+ويعرض نفس صفحة Tara الحالية.
+
+لا تصلح أي مشكلة أخرى تلقائيًا.
+
+الرد النهائي:
+
+PASS/FAIL:
+MODIFIED_FILES:
+PATCH_APPLY:
+BUILD:
+TFCRM_RESTART:
+EVOLUTION_RESTART:
+WHATSAPP_MENU_ITEMS:
+TARA_ROUTE:
+OLD_TARA_ROUTE:
+TARA_PAGE_RENDER:
+DB_TOUCHED:
+NOTES:

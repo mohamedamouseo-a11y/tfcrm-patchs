@@ -1,0 +1,34 @@
+TFCRM WhatsApp Tara Navigation V1
+================================
+
+Goal
+----
+Match TTCRM navigation placement for Tara:
+
+WhatsApp
+- Inbox
+- Tara
+- Accounts & QR
+
+Changes
+-------
+client/src/components/CRMLayout.tsx
+- Adds /wa-gateway/tara to WhatsApp active/group routes.
+- Adds Tara between Inbox and Accounts & QR in full menu.
+- Adds Tara to collapsed WhatsApp submenu.
+- Makes Tara part of WhatsApp grouping.
+- Removes Tara duplication from AI mini-group; Zaghloul remains there.
+- Preserves existing /tara compatibility.
+
+client/src/App.tsx
+- Adds route alias /wa-gateway/tara -> TaraAgentPage.
+- Preserves /tara -> TaraAgentPage.
+
+Safety
+------
+No backend changes.
+No DB changes.
+No migrations.
+No provider/API-key changes.
+No Evolution/Docker changes.
+No CSS/layout redesign.
