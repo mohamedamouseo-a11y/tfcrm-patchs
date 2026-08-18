@@ -1,0 +1,395 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import re
+import subprocess
+from pathlib import Path
+
+EXPECTED_BASE_SHA = "0b77201204fcaa79ccbd43798a7b7678ae2c5a4b"
+PATCH_ID = "TFCRM_EGYPT_LOCATION_WALKIN_V1"
+
+
+def read(path: Path) -> str:
+    if not path.exists():
+        raise SystemExit(f"Missing required file: {path}")
+    return path.read_text(encoding="utf-8")
+
+
+def write(path: Path, text: str, dry_run: bool):
+    if dry_run:
+        print(f"[dry-run] write {path}")
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    print(f"[write] {path}")
+
+
+def replace_once(text: str, old: str, new: str, label: str, required=True) -> str:
+    count = text.count(old)
+    if count == 0:
+        if required:
+            raise SystemExit(f"Anchor not found: {label}")
+        print(f"[skip] {label} (anchor not found)")
+        return text
+    if count > 1:
+        raise SystemExit(f"Anchor is ambiguous ({count} matches): {label}")
+    return text.replace(old, new, 1)
+
+
+def replace_all(text: str, old: str, new: str, label: str, min_count=1) -> str:
+    count = text.count(old)
+    if count < min_count:
+        raise SystemExit(f"Anchor not found enough times ({count}): {label}")
+    print(f"[patch] {label}: {count} occurrence(s)")
+    return text.replace(old, new)
+
+
+def regex_once(text: str, pattern: str, repl, label: str, flags=0, required=True) -> str:
+    replacement = (lambda _match: repl) if isinstance(repl, str) else repl
+    result, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+    if count != 1:
+        if required:
+            raise SystemExit(f"Regex anchor failed ({count} matches): {label}")
+        print(f"[skip] {label} (matches={count})")
+        return text
+    return result
+
+
+def inject_in_function(text: str, signature: str, needle: str, addition: str, label: str) -> str:
+    start = text.find(signature)
+    if start < 0:
+        raise SystemExit(f"Function signature not found: {label}")
+    next_export = text.find("\nexport ", start + len(signature))
+    end = next_export if next_export >= 0 else len(text)
+    segment = text[start:end]
+    if addition.strip() in segment:
+        print(f"[skip] {label} already patched")
+        return text
+    if needle not in segment:
+        raise SystemExit(f"Needle not found inside function: {label}")
+    segment = segment.replace(needle, needle + addition, 1)
+    return text[:start] + segment + text[end:]
+
+
+def current_sha(root: Path) -> str | None:
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return None
+
+
+EGYPT_LOCATIONS_TS = r'''// TFCRM_EGYPT_LOCATION_WALKIN_V1
+export type EgyptGovernorate = {
+  key: string;
+  ar: string;
+  en: string;
+  cities: string[];
+};
+
+export const EGYPT_GOVERNORATES: EgyptGovernorate[] = [
+  { key: "Cairo", ar: "القاهرة", en: "Cairo", cities: ["القاهرة", "مدينة نصر", "مصر الجديدة", "التجمع الخامس", "القاهرة الجديدة", "المعادي", "حلوان", "الشروق", "بدر", "العاصمة الإدارية الجديدة"] },
+  { key: "Giza", ar: "الجيزة", en: "Giza", cities: ["الجيزة", "6 أكتوبر", "الشيخ زايد", "الدقي", "المهندسين", "العجوزة", "الهرم", "فيصل", "البدرشين", "الحوامدية"] },
+  { key: "Alexandria", ar: "الإسكندرية", en: "Alexandria", cities: ["الإسكندرية", "برج العرب", "العامرية", "سموحة", "سيدي جابر", "العجمي", "المنتزه"] },
+  { key: "Qalyubia", ar: "القليوبية", en: "Qalyubia", cities: ["بنها", "شبرا الخيمة", "قليوب", "القناطر الخيرية", "العبور", "الخانكة", "طوخ"] },
+  { key: "Dakahlia", ar: "الدقهلية", en: "Dakahlia", cities: ["المنصورة", "طلخا", "ميت غمر", "دكرنس", "المنزلة", "بلقاس", "السنبلاوين"] },
+  { key: "Sharqia", ar: "الشرقية", en: "Sharqia", cities: ["الزقازيق", "العاشر من رمضان", "بلبيس", "منيا القمح", "أبو كبير", "فاقوس", "ههيا"] },
+  { key: "Gharbia", ar: "الغربية", en: "Gharbia", cities: ["طنطا", "المحلة الكبرى", "كفر الزيات", "زفتى", "سمنود", "بسيون"] },
+  { key: "Monufia", ar: "المنوفية", en: "Monufia", cities: ["شبين الكوم", "السادات", "منوف", "أشمون", "قويسنا", "الباجور"] },
+  { key: "Beheira", ar: "البحيرة", en: "Beheira", cities: ["دمنهور", "كفر الدوار", "رشيد", "إدكو", "أبو حمص", "وادي النطرون"] },
+  { key: "KafrElSheikh", ar: "كفر الشيخ", en: "Kafr El Sheikh", cities: ["كفر الشيخ", "دسوق", "بلطيم", "بيلا", "الحامول", "سيدي سالم"] },
+  { key: "Damietta", ar: "دمياط", en: "Damietta", cities: ["دمياط", "دمياط الجديدة", "رأس البر", "فارسكور", "كفر سعد"] },
+  { key: "PortSaid", ar: "بورسعيد", en: "Port Said", cities: ["بورسعيد", "بورفؤاد"] },
+  { key: "Ismailia", ar: "الإسماعيلية", en: "Ismailia", cities: ["الإسماعيلية", "فايد", "القنطرة شرق", "القنطرة غرب", "التل الكبير"] },
+  { key: "Suez", ar: "السويس", en: "Suez", cities: ["السويس"] },
+  { key: "Fayoum", ar: "الفيوم", en: "Fayoum", cities: ["الفيوم", "سنورس", "إطسا", "طامية", "يوسف الصديق"] },
+  { key: "BeniSuef", ar: "بني سويف", en: "Beni Suef", cities: ["بني سويف", "بني سويف الجديدة", "الواسطى", "ناصر", "إهناسيا", "الفشن"] },
+  { key: "Minya", ar: "المنيا", en: "Minya", cities: ["المنيا", "المنيا الجديدة", "ملوي", "سمالوط", "بني مزار", "مغاغة"] },
+  { key: "Assiut", ar: "أسيوط", en: "Assiut", cities: ["أسيوط", "أسيوط الجديدة", "ديروط", "القوصية", "أبنوب", "منفلوط"] },
+  { key: "Sohag", ar: "سوهاج", en: "Sohag", cities: ["سوهاج", "سوهاج الجديدة", "أخميم", "جرجا", "طهطا", "البلينا"] },
+  { key: "Qena", ar: "قنا", en: "Qena", cities: ["قنا", "قنا الجديدة", "نجع حمادي", "دشنا", "قفط", "قوص"] },
+  { key: "Luxor", ar: "الأقصر", en: "Luxor", cities: ["الأقصر", "إسنا", "أرمنت", "الطود"] },
+  { key: "Aswan", ar: "أسوان", en: "Aswan", cities: ["أسوان", "أسوان الجديدة", "كوم أمبو", "إدفو", "دراو"] },
+  { key: "RedSea", ar: "البحر الأحمر", en: "Red Sea", cities: ["الغردقة", "سفاجا", "القصير", "مرسى علم", "رأس غارب"] },
+  { key: "NewValley", ar: "الوادي الجديد", en: "New Valley", cities: ["الخارجة", "الداخلة", "الفرافرة", "باريس"] },
+  { key: "Matrouh", ar: "مطروح", en: "Matrouh", cities: ["مرسى مطروح", "العلمين", "العلمين الجديدة", "الضبعة", "سيوة", "الحمام"] },
+  { key: "NorthSinai", ar: "شمال سيناء", en: "North Sinai", cities: ["العريش", "بئر العبد", "الشيخ زويد", "رفح"] },
+  { key: "SouthSinai", ar: "جنوب سيناء", en: "South Sinai", cities: ["شرم الشيخ", "دهب", "نويبع", "طابا", "الطور", "رأس سدر"] },
+];
+
+export function getGovernorate(value?: string | null) {
+  if (!value) return undefined;
+  const normalized = String(value).trim().toLowerCase();
+  return EGYPT_GOVERNORATES.find((g) =>
+    [g.key, g.ar, g.en].some((candidate) => candidate.toLowerCase() === normalized)
+  );
+}
+
+export function getGovernorateLabel(value: string | null | undefined, isRTL: boolean) {
+  const governorate = getGovernorate(value);
+  return governorate ? (isRTL ? governorate.ar : governorate.en) : (value || "—");
+}
+'''
+
+SCHEMA_CRM_LOCATION_TS = r'''// TFCRM_EGYPT_LOCATION_WALKIN_V1
+import { index, int, mysqlTable, timestamp, uniqueIndex, varchar, tinyint } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
+
+export const crmBranches = mysqlTable("crm_branches", {
+  id: int().autoincrement().primaryKey().notNull(),
+  code: varchar({ length: 80 }).notNull(),
+  nameAr: varchar("name_ar", { length: 255 }).notNull(),
+  nameEn: varchar("name_en", { length: 255 }),
+  governorate: varchar({ length: 100 }),
+  city: varchar({ length: 120 }),
+  area: varchar({ length: 160 }),
+  address: varchar({ length: 500 }),
+  isActive: tinyint("is_active").default(1).notNull(),
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at", { mode: "string" }).default(sql`(now())`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "string" }).default(sql`(now())`).onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_crm_branches_code").on(table.code),
+  index("idx_crm_branches_active").on(table.isActive),
+  index("idx_crm_branches_location").on(table.governorate, table.city),
+]);
+
+export type CrmBranch = typeof crmBranches.$inferSelect;
+export type InsertCrmBranch = typeof crmBranches.$inferInsert;
+'''
+
+CRM_LOCATION_ROUTER_TS = r'''// TFCRM_EGYPT_LOCATION_WALKIN_V1
+import { TRPCError } from "@trpc/server";
+import { asc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { crmBranches } from "../drizzle/schema_crm_location";
+import { protectedProcedure, router } from "./_core/trpc";
+import { getDb } from "./db";
+import { getPermissionRole } from "./roleUtils";
+
+function assertBranchAdmin(ctx: any) {
+  const role = getPermissionRole(ctx.user?.role);
+  if (!["SuperAdmin", "Admin"].includes(role)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Branch management requires Admin access" });
+  }
+}
+
+const branchPayload = z.object({
+  code: z.string().trim().min(2).max(80),
+  nameAr: z.string().trim().min(2).max(255),
+  nameEn: z.string().trim().max(255).optional().nullable(),
+  governorate: z.string().trim().max(100).optional().nullable(),
+  city: z.string().trim().max(120).optional().nullable(),
+  area: z.string().trim().max(160).optional().nullable(),
+  address: z.string().trim().max(500).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+export const crmLocationRouter = router({
+  listBranches: protectedProcedure
+    .input(z.object({ includeInactive: z.boolean().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      if (input?.includeInactive) {
+        // Historical branch names are CRM reference data; writes remain Admin-only.
+        return db.select().from(crmBranches).orderBy(asc(crmBranches.nameAr));
+      }
+      return db.select().from(crmBranches).where(eq(crmBranches.isActive, 1)).orderBy(asc(crmBranches.nameAr));
+    }),
+
+  createBranch: protectedProcedure
+    .input(branchPayload)
+    .mutation(async ({ input, ctx }) => {
+      assertBranchAdmin(ctx);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      try {
+        const result = await db.insert(crmBranches).values({
+          ...input,
+          nameEn: input.nameEn || null,
+          governorate: input.governorate || null,
+          city: input.city || null,
+          area: input.area || null,
+          address: input.address || null,
+          isActive: input.isActive === false ? 0 : 1,
+          createdBy: Number(ctx.user.id),
+        } as any);
+        return { id: Number((result as any)?.[0]?.insertId || 0), success: true };
+      } catch (error: any) {
+        if (/duplicate|uq_crm_branches_code/i.test(String(error?.message || ""))) {
+          throw new TRPCError({ code: "CONFLICT", message: "Branch code already exists" });
+        }
+        throw error;
+      }
+    }),
+
+  updateBranch: protectedProcedure
+    .input(branchPayload.extend({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      assertBranchAdmin(ctx);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { id, ...data } = input;
+      await db.update(crmBranches).set({
+        ...data,
+        nameEn: data.nameEn || null,
+        governorate: data.governorate || null,
+        city: data.city || null,
+        area: data.area || null,
+        address: data.address || null,
+        isActive: data.isActive === false ? 0 : 1,
+      } as any).where(eq(crmBranches.id, id));
+      return { success: true };
+    }),
+});
+'''
+
+CRM_LOCATION_FIELDS_TSX = r'''// TFCRM_EGYPT_LOCATION_WALKIN_V1
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { trpc } from "@/lib/trpc";
+import { EGYPT_GOVERNORATES, getGovernorate } from "@/lib/egypt-locations";
+
+export type CrmLocationValue = {
+  governorate?: string;
+  city?: string;
+  area?: string;
+  entryMode?: "WalkIn" | "Remote" | string;
+  walkInBranchId?: number | null;
+};
+
+export default function CrmLocationFields({ value, onChange, isRTL, compact = false, showEntryMode = true }: {
+  value: CrmLocationValue;
+  onChange: (patch: Partial<CrmLocationValue>) => void;
+  isRTL: boolean;
+  compact?: boolean;
+  showEntryMode?: boolean;
+}) {
+  const branchesQ = trpc.crmLocation.listBranches.useQuery({ includeInactive: false });
+  const selectedGov = getGovernorate(value.governorate);
+  const controlClass = compact ? "h-9 rounded-xl" : "h-10 rounded-xl";
+  const setEntryMode = (next: string) => {
+    onChange({ entryMode: next, ...(next === "WalkIn" ? {} : { walkInBranchId: null }) });
+  };
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground">{isRTL ? "المحافظة" : "Governorate"}</Label>
+        <Select value={value.governorate || "__none__"} onValueChange={(v) => onChange({ governorate: v === "__none__" ? "" : v, city: "" })}>
+          <SelectTrigger className={controlClass}><SelectValue placeholder={isRTL ? "اختر المحافظة" : "Select governorate"} /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">—</SelectItem>
+            {EGYPT_GOVERNORATES.map((g) => <SelectItem key={g.key} value={g.key}>{isRTL ? g.ar : g.en}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground">{isRTL ? "المدينة / المركز" : "City / Markaz"}</Label>
+        <Input
+          value={value.city || ""}
+          onChange={(e) => onChange({ city: e.target.value })}
+          list="tfcrm-egypt-city-options"
+          placeholder={isRTL ? "اختر أو اكتب المدينة" : "Select or type city"}
+          className={controlClass}
+        />
+        <datalist id="tfcrm-egypt-city-options">
+          {(selectedGov?.cities || []).map((city) => <option key={city} value={city} />)}
+        </datalist>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground">{isRTL ? "المنطقة" : "Area"}</Label>
+        <Input value={value.area || ""} onChange={(e) => onChange({ area: e.target.value })} placeholder={isRTL ? "الحي / المنطقة" : "District / area"} className={controlClass} />
+      </div>
+
+      {showEntryMode && <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground">{isRTL ? "طريقة دخول العميل" : "Entry Mode"}</Label>
+        <Select value={value.entryMode || "Remote"} onValueChange={setEntryMode}>
+          <SelectTrigger className={controlClass}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Remote">{isRTL ? "عن بُعد / غير Walk-in" : "Remote / Non walk-in"}</SelectItem>
+            <SelectItem value="WalkIn">{isRTL ? "Walk-in للفرع" : "Walk-in"}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>}
+
+      {showEntryMode && value.entryMode === "WalkIn" && (
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label className="text-xs font-semibold text-muted-foreground">{isRTL ? "الفرع الذي زاره العميل" : "Visited Branch"} <span className="text-destructive">*</span></Label>
+          <Select value={value.walkInBranchId ? String(value.walkInBranchId) : "__none__"} onValueChange={(v) => onChange({ walkInBranchId: v === "__none__" ? null : Number(v) })}>
+            <SelectTrigger className={controlClass}><SelectValue placeholder={isRTL ? "اختر الفرع" : "Select branch"} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">—</SelectItem>
+              {(branchesQ.data || []).map((branch: any) => (
+                <SelectItem key={branch.id} value={String(branch.id)}>{isRTL ? branch.nameAr : (branch.nameEn || branch.nameAr)} · {branch.code}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!branchesQ.isLoading && !(branchesQ.data || []).length && (
+            <p className="text-xs text-amber-600">{isRTL ? "أضف الفروع أولًا من الإعدادات > الفروع." : "Add branches first from Settings > Branches."}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+'''
+
+CRM_LOCATION_FILTERS_TSX = r'''// TFCRM_EGYPT_LOCATION_WALKIN_V1
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { trpc } from "@/lib/trpc";
+import { EGYPT_GOVERNORATES } from "@/lib/egypt-locations";
+
+export type CrmLocationFilterState = {
+  governorate: string;
+  city: string;
+  area: string;
+  entryMode: string;
+  walkInBranchId: string;
+};
+
+export default function CrmLocationFilters({ filters, onChange, isRTL, className = "" }: {
+  filters: CrmLocationFilterState;
+  onChange: (patch: Partial<CrmLocationFilterState>) => void;
+  isRTL: boolean;
+  className?: string;
+}) {
+  const branchesQ = trpc.crmLocation.listBranches.useQuery({ includeInactive: true });
+  const all = "__all__";
+  return (
+    <div className={`contents ${className}`}>
+      <Select value={filters.governorate || all} onValueChange={(v) => onChange({ governorate: v === all ? "" : v, city: "" })}>
+        <SelectTrigger className="h-10 min-w-[155px] rounded-xl"><SelectValue placeholder={isRTL ? "المحافظة" : "Governorate"} /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={all}>{isRTL ? "كل المحافظات" : "All governorates"}</SelectItem>
+          {EGYPT_GOVERNORATES.map((g) => <SelectItem key={g.key} value={g.key}>{isRTL ? g.ar : g.en}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Input className="h-10 min-w-[145px] rounded-xl" value={filters.city} onChange={(e) => onChange({ city: e.target.value })} placeholder={isRTL ? "المدينة" : "City"} />
+      <Input className="h-10 min-w-[145px] rounded-xl" value={filters.area} onChange={(e) => onChange({ area: e.target.value })} placeholder={isRTL ? "المنطقة" : "Area"} />
+      <Select value={filters.entryMode || all} onValueChange={(v) => onChange({ entryMode: v === all ? "" : v, walkInBranchId: v === "WalkIn" ? filters.walkInBranchId : "" })}>
+        <SelectTrigger className="h-10 min-w-[170px] rounded-xl"><SelectValue placeholder={isRTL ? "طريقة الدخول" : "Entry mode"} /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={all}>{isRTL ? "كل طرق الدخول" : "All entry modes"}</SelectItem>
+          <SelectItem value="Remote">{isRTL ? "عن بُعد" : "Remote"}</SelectItem>
+          <SelectItem value="WalkIn">Walk-in</SelectItem>
+        </SelectContent>
+      </Select>
+      {(filters.entryMode === "WalkIn" || filters.walkInBranchId) && (
+        <Select value={filters.walkInBranchId || all} onValueChange={(v) => onChange({ walkInBranchId: v === all ? "" : v, entryMode: "WalkIn" })}>
+          <SelectTrigger className="h-10 min-w-[180px] rounded-xl"><SelectValue placeholder={isRTL ? "الفرع" : "Branch"} /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={all}>{isRTL ? "كل الفروع" : "All branches"}</SelectItem>
+            {(branchesQ.data || []).map((branch: any) => <SelectItem key={branch.id} value={String(branch.id)}>{isRTL ? branch.nameAr : (branch.nameEn || branch.nameAr)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+'''
