@@ -3,7 +3,14 @@ from pathlib import Path
 import base64, gzip, hashlib
 
 ROOT = Path(__file__).resolve().parent
-PARTS = [ROOT / f"PATCHER_GZ_B64.part{i:02d}" for i in range(4)]
+PART_NAMES = [
+    "PATCHER_GZ_B64.part00",
+    "PATCHER_GZ_B64.part01",
+    "PATCHER_GZ_B64.part02a",
+    "PATCHER_GZ_B64.part02b",
+    "PATCHER_GZ_B64.part03",
+]
+PARTS = [ROOT / name for name in PART_NAMES]
 EXPECTED_SHA256 = "413a3087eeb29173bdcc1615aa3af5ea15ffbab65acb8915ac2a0e565adf08df"
 
 missing = [p.name for p in PARTS if not p.exists()]
