@@ -1,0 +1,39 @@
+TFCRM-Smart-Search-Phase2-Fuzzy-V1
+
+PURPOSE
+Add bounded fuzzy typo tolerance on top of Smart Search Phase 1 for the Client Pool.
+
+PREREQUISITE
+TFCRM-Smart-Search-Phase1-V1 must already be applied.
+The patch refuses to modify server/db.ts if Phase 1 markers are missing.
+
+BEHAVIOR
+- Phase 1 normalized exact/partial search always runs first.
+- Fuzzy fallback runs only when Phase 1 returns zero matches.
+- Fuzzy handles one-character insert/delete/substitution and adjacent transposition.
+- Longer words may tolerate up to two edits with similarity thresholding.
+- Arabic uses the same Phase 1 normalization before fuzzy scoring.
+- Numeric-only searches do not use fuzzy matching.
+- Multi-word queries require every token to find a matching field.
+- Existing role/team/account-manager filters are applied before fuzzy candidate evaluation.
+- Candidate evaluation is capped at 1000 filtered clients.
+- Client Pool list and stats resolve the same fuzzy ID set logic.
+
+FILES
+- server/db.ts
+- server/utils/smartSearch.ts
+- server/utils/smartSearch.test.ts
+
+NO DATABASE CHANGES
+No schema change, migration, or db:push is required.
+
+APPLY
+python3 APPLY_PATCH.py /var/www/TFCRM
+
+VERIFY
+npx vitest run server/utils/smartSearch.test.ts
+npm run build
+
+DEPLOY
+Restart TFCRM production PM2 process only after a successful build.
+Do not restart Evolution, WhatsApp, TOS, or unrelated processes.
