@@ -1,0 +1,92 @@
+طبّق Patch: TFCRM-Smart-Search-Phase4-Voice-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase4-Voice-V1
+
+Target project:
+/var/www/TFCRM
+
+Prerequisite:
+لازم TFCRM-Smart-Search-Phase3-Autocomplete-V1 يكون مطبق بالفعل. لو SMART_SEARCH_PHASE3_AUTOCOMPLETE_V1 غير موجود، لا تعمل أي تعديل يدوي؛ ارجع FAIL.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase4-Voice-V1
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) cd /var/www/TFCRM
+5) NODE_OPTIONS=--max-old-space-size=3072 npm run build
+6) بعد نجاح الـBuild فقط: حدّد PM2 process/ processes التي pm_cwd الخاص بها يساوي /var/www/TFCRM بالضبط، واعمل Restart لها فقط.
+7) تأكد أن TFCRM رجع online وHTTP 200.
+
+المطلوب من Phase 4:
+- إضافة Mic داخل/بجوار Search الخاص بـ Client Pool.
+- استخدام نفس Browser STT pattern الموجود في Rakan:
+  SpeechRecognition || webkitSpeechRecognition
+  continuous=false
+  interimResults=true
+  maxAlternatives=1
+- Arabic UI يستخدم ar-SA.
+- English UI يستخدم en-US.
+- الـtranscript يدخل نفس search state الحالية، وبالتالي يمر بنفس Phase 1 normalization + Phase 2 fuzzy + Phase 3 autocomplete.
+- أثناء الاستماع يظهر MicOff + pulse/Listening indicator.
+- لو المتصفح لا يدعم SpeechRecognition لا يظهر زر الميكروفون ويظل البحث النصي طبيعيًا.
+- لو Permission denied / no microphone / network / no speech يظهر Toast واضح بدون كسر الصفحة.
+
+مهم:
+- لا تستخدم ElevenLabs conversational voice في Smart Search.
+- لا تستخدم AI أو semantic search أو MediaRecorder أو backend speech endpoint.
+- لا تضف API endpoint جديد.
+- لا تعدّل server/db.ts أو Phase 1/2 logic.
+- لا تعدّل permissions/routes.
+- لا تعمل db:push أو migration أو schema change.
+- لا تعمل Restart لـ Evolution أو WhatsApp أو TOS أو أي PM2 process خارج /var/www/TFCRM.
+- لا تصلح أخطاء قديمة خارج الملفات المعدلة.
+
+الملفات المسموح تعديلها فقط:
+- client/src/pages/ClientPool.tsx
+- client/src/hooks/useSmartSearchVoice.ts
+
+اختبار Live بعد النشر:
+1) افتح Client Pool من Chrome أو Edge على HTTPS.
+2) تأكد أن زر Mic ظاهر في Search.
+3) اضغط Mic واسمح بإذن الميكروفون.
+4) والواجهة عربي: انطق اسم عميل/شركة عربي موجود. تأكد أن النص يظهر داخل Search وأن النتائج تتحدث.
+5) غيّر الواجهة English: انطق اسم عميل/شركة إنجليزي. تأكد أن Voice Search ما زال يعمل.
+6) أثناء الاستماع: تأكد أن الزر يتحول إلى MicOff ويظهر Pulse/Listening.
+7) اضغط الزر أثناء الاستماع وتأكد أنه يوقف الاستماع.
+8) ارفض Permission في اختبار منفصل إن أمكن: لازم يظهر Toast واضح والبحث النصي يظل يعمل.
+9) اكتب يدويًا وتأكد أن Text Search مازال يعمل.
+10) جرّب Autocomplete وتأكد أن Phase 3 مازالت تعمل.
+11) جرّب typo بسيط وتأكد أن Phase 2 Fuzzy مازالت تعمل.
+12) اختبر بحساب محدود الصلاحيات وتأكد أن Voice Search لا يغير Permission Scope.
+
+لو أي اختبار أو Build فشل، لا تعمل Fix إضافي تلقائيًا. ارجع بالنتيجة كاملة.
+
+الرد النهائي:
+PASS/FAIL:
+PHASE3_PREREQUISITE:
+PATCH_APPLIED:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+TFCRM_HTTP:
+MIC_VISIBLE:
+VOICE_ENGINE:
+ARABIC_TRANSCRIPT:
+ENGLISH_TRANSCRIPT:
+VOICE_TO_SEARCH:
+LISTENING_STATE:
+STOP_LISTENING:
+PERMISSION_DENIED_HANDLING:
+UNSUPPORTED_BROWSER_FALLBACK:
+TEXT_SEARCH_STILL_WORKS:
+AUTOCOMPLETE_STILL_WORKS:
+FUZZY_STILL_WORKS:
+PERMISSION_SCOPE:
+FILES_CHANGED:
+DB_CHANGED:
+OTHER_PM2_TOUCHED:
+NOTES:
