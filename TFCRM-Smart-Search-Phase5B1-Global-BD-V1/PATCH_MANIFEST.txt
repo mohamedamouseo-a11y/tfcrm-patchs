@@ -1,0 +1,32 @@
+TFCRM-Smart-Search-Phase5B1-Global-BD-V1
+
+Scope:
+- Global Search (BD deals / companies / contacts)
+- BD Companies list search
+- BD Contacts list search
+- BD Deals Kanban local search
+
+Capabilities:
+- P1 Arabic/English normalization
+- P2 bounded fuzzy typo fallback
+- P3 suggestions/autocomplete
+- P4 Browser SpeechRecognition voice-to-same-search-state
+
+Server changes:
+- server/routes/bd/search.ts
+- server/routes/bd/companies.ts
+- server/routes/bd/contacts.ts
+- server/routes/bd/deals.ts
+
+Client changes:
+- client/src/components/GlobalSearch.tsx
+- client/src/pages/BD/CompaniesList.tsx
+- client/src/pages/BD/ContactsList.tsx
+- client/src/pages/BD/DealsKanban.tsx
+
+Safety:
+- No DB schema/migration/db:push.
+- Existing BD permission/ownership filters preserved.
+- Numeric-only fuzzy remains disabled through shared Smart Search core.
+- Global fuzzy candidate cap 500; list fallback cap 1000.
+- No WhatsApp/Evolution/TOS changes.
