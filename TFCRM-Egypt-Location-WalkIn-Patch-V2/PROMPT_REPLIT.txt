@@ -1,0 +1,37 @@
+نفّذ فقط Patch V2 التالي على مشروع TFCRM الحالي بأقل استهلاك Credits ممكن.
+
+Patch repo:
+mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Egypt-Location-WalkIn-Patch-V2
+
+مهم:
+- لا تستخدم V1 نهائيًا.
+- لا تعمل تحليل شامل للمشروع.
+- لا تعمل Refactor لأي شيء خارج الباتش.
+- لا تحذف أو Reset أي بيانات.
+- لا تثبّت Packages جديدة.
+- لا تشغّل Tests واسعة.
+
+التنفيذ فقط:
+1) من فولدر Patch V2 شغّل:
+   python3 ASSEMBLE_PATCHER.py
+2) تأكد أن الناتج PATCHER_READY وأن SHA256 يساوي:
+   413a3087eeb29173bdcc1615aa3af5ea15ffbab65acb8915ac2a0e565adf08df
+3) من Root مشروع TFCRM شغّل Dry Run أولًا:
+   python3 <PATCH_V2_PATH>/apply_tfcrm_egypt_walkin_patch.py --root . --dry-run
+4) لو الـDry Run نجح بدون required-anchor failure، طبّق:
+   python3 <PATCH_V2_PATH>/apply_tfcrm_egypt_walkin_patch.py --root .
+5) نفّذ Migration الخاصة بالباتش فقط:
+   npx tsx scripts/apply-crm-egypt-location-walkin-migration.ts
+6) لا تشغّل build أو full tests إلا لو ظهر Error متعلق مباشرة بالباتش. عند الحاجة استخدم أقل check ممكن على الملفات المعدلة فقط.
+
+لا تغيّر أي Feature أخرى.
+
+في النهاية أعطني فقط:
+PATCH_APPLIED: YES/NO
+HEAD_USED: <sha>
+FILES_CHANGED: <list>
+MIGRATION: OK/FAILED/NOT_RUN
+ERROR: <real error only or NONE>
