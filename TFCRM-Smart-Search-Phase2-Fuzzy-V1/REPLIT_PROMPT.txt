@@ -1,0 +1,73 @@
+طبّق Patch: TFCRM-Smart-Search-Phase2-Fuzzy-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Smart-Search-Phase2-Fuzzy-V1
+
+Target project:
+/var/www/TFCRM
+
+Prerequisite:
+يجب أن يكون TFCRM-Smart-Search-Phase1-V1 مطبقًا بالفعل. لو علامات Phase 1 غير موجودة، لا تحاول الإصلاح يدويًا؛ ارجع FAIL.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Smart-Search-Phase2-Fuzzy-V1
+3) python3 APPLY_PATCH.py /var/www/TFCRM
+4) cd /var/www/TFCRM
+5) npx vitest run server/utils/smartSearch.test.ts
+6) npm run build
+7) بعد نجاح الـBuild فقط: حدّد PM2 process/ processes التي pm_cwd الخاص بها يساوي /var/www/TFCRM بالضبط، واعمل Restart لها فقط.
+8) تأكد أن TFCRM رجع online وHTTP 200.
+
+المطلوب من Phase 2:
+- Phase 1 exact/normalized/partial search يفضل الأولوية الأولى.
+- Fuzzy لا يشتغل إلا لو Phase 1 رجع 0 نتائج.
+- يدعم حرف ناقص / زائد / مختلف / تبديل حرفين متجاورين.
+- عربي وإنجليزي بعد نفس normalization بتاع Phase 1.
+- numeric-only search مثل أرقام الموبايل لا يستخدم fuzzy.
+- multi-word query: كل token لازم يلاقي match.
+- الحفاظ الكامل على Client Pool permissions/team/account-manager filters.
+- fuzzy candidate set محدود بحد أقصى 1000 عميل بعد تطبيق الصلاحيات والفلاتر.
+- list وstats يفضلوا متسقين.
+
+اختبارات عملية مقترحة بعد النشر:
+- ابحث باسم/شركة موجودة كتابة صحيحة وتأكد أن النتيجة الطبيعية لم تتغير.
+- لو عندك عميل اسمه/شركته Furniture، جرب typo قريب مثل Furntiure أو Furnture.
+- جرب typo عربي بسيط في اسم عميل موجود.
+- جرب رقم هاتف صحيح ثم رقم هاتف به رقم خاطئ: يجب ألا يعمل fuzzy على الرقم الخاطئ.
+- جرب نفس typo تحت Account Manager محدود الصلاحيات وتأكد أنه لا يرى أي عميل خارج scope.
+
+ممنوع تمامًا:
+- db:push أو migrations أو schema changes.
+- تعديل permissions/routes أو Client Pool filters.
+- إضافة autocomplete أو mic أو AI أو semantic search في Phase 2.
+- أي refactor خارج الملفات التالية:
+  server/db.ts
+  server/utils/smartSearch.ts
+  server/utils/smartSearch.test.ts
+- Restart لـ Evolution أو WhatsApp أو TOS أو أي PM2 process خارج /var/www/TFCRM.
+- إصلاح أخطاء TypeScript قديمة خارج الملفات المعدلة.
+
+لو test أو build فشل، لا تعمل Fix إضافي تلقائيًا. ارجع بالناتج كامل وحدد هل الخطأ مرتبط بالملفات المعدلة أم baseline قديم.
+
+الرد النهائي:
+PASS/FAIL:
+PHASE1_PREREQUISITE:
+PATCH_APPLIED:
+TESTS:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+TFCRM_HTTP:
+EXACT_SEARCH:
+FUZZY_ENGLISH:
+FUZZY_ARABIC:
+NUMERIC_NO_FUZZY:
+PERMISSION_SCOPE:
+FILES_CHANGED:
+DB_CHANGED:
+OTHER_PM2_TOUCHED:
+NOTES:
