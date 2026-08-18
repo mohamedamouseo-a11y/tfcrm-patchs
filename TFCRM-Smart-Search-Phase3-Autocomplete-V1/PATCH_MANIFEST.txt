@@ -1,0 +1,34 @@
+TFCRM-Smart-Search-Phase3-Autocomplete-V1
+
+Prerequisite:
+- TFCRM-Smart-Search-Phase2-Fuzzy-V1 must already be applied.
+- The patch script verifies the Phase 2 marker in server/db.ts and aborts if missing.
+
+Scope:
+- client/src/pages/ClientPool.tsx only
+
+Behavior:
+- Adds autocomplete/suggestions to Client Pool Smart Search.
+- Reuses existing accountManagement.listClients results; no second backend search endpoint is added.
+- Suggestions therefore inherit the same permissions, team/account-manager scope, filters, Phase 1 normalization, and Phase 2 fuzzy fallback.
+- Suggestions start after 2 typed characters.
+- Maximum visible suggestions: 6.
+- Selecting a suggestion fills the existing search field and triggers the same Smart Search flow.
+- Keyboard support: ArrowDown, ArrowUp, Enter, Escape.
+- Mouse support included.
+- Suggestion display fields: business/client label plus safe secondary summary fields already present in listClients response.
+
+Safety:
+- No DB migration.
+- No schema change.
+- No permission change.
+- No new backend endpoint.
+- No AI, semantic search, or microphone in Phase 3.
+
+Apply:
+python3 APPLY_PATCH.py /var/www/TFCRM
+
+Verify:
+1) npm run build
+2) Restart only PM2 process(es) whose pm_cwd is exactly /var/www/TFCRM
+3) Open Client Pool and verify suggestions, keyboard selection, existing fuzzy search, and role scope.
