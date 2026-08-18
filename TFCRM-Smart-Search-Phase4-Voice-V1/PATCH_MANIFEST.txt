@@ -1,0 +1,43 @@
+TFCRM-Smart-Search-Phase4-Voice-V1
+
+PURPOSE
+Add Voice Search / microphone input to Client Pool Smart Search using the same browser SpeechRecognition/webkitSpeechRecognition STT pattern already used by Rakan.
+
+PREREQUISITE
+TFCRM-Smart-Search-Phase3-Autocomplete-V1 must already be applied.
+The patch refuses to guess if SMART_SEARCH_PHASE3_AUTOCOMPLETE_V1 is missing.
+
+FILES MODIFIED/CREATED IN TARGET
+- client/src/pages/ClientPool.tsx
+- client/src/hooks/useSmartSearchVoice.ts
+
+VOICE PIPELINE
+Mic -> Browser Speech Recognition -> transcript -> existing search state -> Phase 1 normalization -> Phase 2 fuzzy fallback -> Phase 3 autocomplete/results.
+
+Rakan reuse scope
+- Reuses the browser STT pattern: SpeechRecognition || webkitSpeechRecognition.
+- continuous=false.
+- interimResults=true.
+- maxAlternatives=1.
+- Mic/MicOff listening state with pulse.
+- Does NOT use ElevenLabs conversational voice, AI, MediaRecorder, or a new backend speech endpoint.
+
+LANGUAGES
+- Arabic UI: ar-SA
+- English UI: en-US
+
+UX / SAFETY
+- Mic renders only when SpeechRecognition/webkitSpeechRecognition is supported.
+- Unsupported browsers keep normal text search fully usable.
+- Permission/network/no-speech errors show localized toast messages.
+- Transcript writes to the same search state; no duplicate search pipeline.
+- Existing permissions, filters, autocomplete, fuzzy search, and pagination are untouched.
+
+DATABASE
+NO migration.
+NO schema change.
+NO data write.
+
+DEPLOYMENT
+After patch application, run production build and restart only the PM2 process/processes whose pm_cwd is exactly /var/www/TFCRM.
+Do not restart Evolution, WhatsApp, TOS, or unrelated PM2 processes.
