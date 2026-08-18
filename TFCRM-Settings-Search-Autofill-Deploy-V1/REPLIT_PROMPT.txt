@@ -1,0 +1,56 @@
+نفّذ Deploy فقط للباتش المطبق مسبقًا: TFCRM-Settings-Search-Autofill-Fix-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Deploy folder:
+TFCRM-Settings-Search-Autofill-Deploy-V1
+
+Target project:
+/var/www/TFCRM
+
+المشكلة الحالية:
+تم تعديل client/src/pages/AdminSettings.tsx لكن الموقع Production مازال يعرض الـbundle القديم لأن BUILD و TFCRM RESTART لم يتم تنفيذهما.
+
+نفّذ فقط:
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cd /tmp/tfcrm-patchs/TFCRM-Settings-Search-Autofill-Deploy-V1
+3) chmod +x DEPLOY.sh
+4) ./DEPLOY.sh /var/www/TFCRM
+
+السكربت يجب أن:
+- يتحقق أولًا أن علامات TFCRM-Settings-Search-Autofill-Fix-V1 موجودة في AdminSettings.tsx.
+- يشغل npm run build داخل /var/www/TFCRM.
+- يحدد عمليات PM2 التي pm_cwd الخاص بها يساوي /var/www/TFCRM بالضبط.
+- يعمل Restart لهذه العمليات فقط.
+- يتأكد أنها رجعت online.
+
+ممنوع تمامًا:
+- تعديل أي Source Code إضافي.
+- db:push أو migrations أو أي Schema change.
+- Restart لأي Evolution / WhatsApp / TOS أو أي PM2 process خارج /var/www/TFCRM.
+- إصلاح TypeScript errors أو أي refactor.
+
+بعد نجاح النشر اختبر يدويًا على:
+https://tfcrm.tamiyouz.com/settings?tab=developerHub
+
+1) اعمل Hard Reload: Ctrl+F5.
+2) تأكد أن Search Settings فارغة ولا يظهر الإيميل تلقائيًا.
+3) اضغط داخل خانة البحث واكتب كلمة مثل developer أو تطوير وتأكد أن البحث يعمل طبيعيًا.
+
+لو الإيميل ما زال يظهر بعد نجاح BUILD + Restart + Hard Reload:
+- لا تعمل أي تعديل جديد.
+- ارجع بالنتيجة واذكر أن المشكلة مستمرة بعد نشر الـbundle الجديد، لننتقل للـEdge late-autofill guard.
+
+الرد النهائي:
+PASS/FAIL:
+SOURCE_FIX:
+BUILD:
+TFCRM_PM2_IDS:
+TFCRM_RESTART:
+PM2_STATUS:
+AUTOFILL_AFTER_HARD_RELOAD:
+SEARCH_TYPING:
+DB_CHANGED:
+OTHER_PM2_TOUCHED:
+NOTES:
