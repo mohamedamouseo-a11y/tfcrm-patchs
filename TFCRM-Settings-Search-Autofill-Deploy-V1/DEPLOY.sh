@@ -23,29 +23,29 @@ cd "$ROOT"
 npm run build
 echo "BUILD: PASS"
 
-PM2_IDS="$(pm2 jlist | python3 - "$ROOT" <<'PY'
-import json, os, sys
-root = os.path.realpath(sys.argv[1])
-try:
-    data = json.load(sys.stdin)
-except Exception as exc:
-    print(f"ERROR:{exc}")
-    raise SystemExit(2)
-ids = []
-for proc in data:
-    env = proc.get("pm2_env") or {}
-    cwd = env.get("pm_cwd")
-    if cwd and os.path.realpath(cwd) == root:
-        ids.append(str(proc.get("pm_id")))
-print(" ".join(ids))
-PY
-)"
+export TFCRM_ROOT="$ROOT"
+PM2_IDS="$(pm2 jlist | node -e '
+let raw="";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", c => raw += c);
+process.stdin.on("end", () => {
+  const path = require("path");
+  let data;
+  try { data = JSON.parse(raw); } catch (e) { process.stderr.write(String(e)); process.exit(2); }
+  const root = path.resolve(process.env.TFCRM_ROOT || "");
+  const ids = data.filter(p => {
+    const cwd = p && p.pm2_env && p.pm2_env.pm_cwd;
+    return cwd && path.resolve(cwd) === root;
+  }).map(p => String(p.pm_id));
+  process.stdout.write(ids.join(" "));
+});
+')"
 
-if [[ "$PM2_IDS" == ERROR:* || -z "${PM2_IDS// }" ]]; then
+if [[ -z "${PM2_IDS// }" ]]; then
   echo "PASS/FAIL: FAIL"
   echo "BUILD: PASS"
   echo "TFCRM_RESTART: NOT_RUN"
-  echo "REASON: Could not uniquely locate any PM2 process whose cwd is exactly $ROOT"
+  echo "REASON: Could not locate a PM2 process whose cwd is exactly $ROOT"
   exit 1
 fi
 
@@ -58,22 +58,19 @@ echo "TFCRM_RESTART: PASS"
 
 sleep 2
 for id in $PM2_IDS; do
-  status="$(pm2 jlist | python3 - "$id" <<'PY'
-import json, sys
-pid = str(sys.argv[1])
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    print("unknown")
-    raise SystemExit(0)
-for proc in data:
-    if str(proc.get("pm_id")) == pid:
-        print((proc.get("pm2_env") or {}).get("status", "unknown"))
-        break
-else:
-    print("missing")
-PY
-)"
+  export TFCRM_PM2_ID="$id"
+  status="$(pm2 jlist | node -e '
+let raw="";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", c => raw += c);
+process.stdin.on("end", () => {
+  let data;
+  try { data = JSON.parse(raw); } catch { process.stdout.write("unknown"); return; }
+  const id = String(process.env.TFCRM_PM2_ID || "");
+  const proc = data.find(p => String(p.pm_id) === id);
+  process.stdout.write(proc && proc.pm2_env ? String(proc.pm2_env.status || "unknown") : "missing");
+});
+')"
   echo "PM2_STATUS[$id]: $status"
   if [[ "$status" != "online" ]]; then
     echo "PASS/FAIL: FAIL"
