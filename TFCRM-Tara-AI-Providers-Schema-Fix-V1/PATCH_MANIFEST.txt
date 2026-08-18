@@ -1,0 +1,3 @@
+TFCRM Tara AI Providers Schema Fix V1
+Confirmed legacy schema: id, provider, enabled, config_json, updated_at. ROW_COUNT=0.
+Converts with one guarded ALTER TABLE to the current drizzle/schema.ts layout. Dry-run by default. No data writes, source changes, build/restart, or provider API calls.

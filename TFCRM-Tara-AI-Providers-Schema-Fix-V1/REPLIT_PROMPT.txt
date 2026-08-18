@@ -1,0 +1,54 @@
+طبّق Patch: TFCRM-Tara-AI-Providers-Schema-Fix-V1
+
+Repository:
+https://github.com/mohamedamouseo-a11y/tfcrm-patchs
+
+Patch folder:
+TFCRM-Tara-AI-Providers-Schema-Fix-V1
+
+المشكلة مؤكدة: tara_ai_providers موجود بالـ Legacy Schema: id, provider, enabled, config_json, updated_at و ROW_COUNT=0.
+
+1) cd /tmp && rm -rf tfcrm-patchs && git clone --depth 1 https://github.com/mohamedamouseo-a11y/tfcrm-patchs.git
+2) cp /tmp/tfcrm-patchs/TFCRM-Tara-AI-Providers-Schema-Fix-V1/apply_tfcrm_tara_ai_providers_schema_fix_v1.mjs /var/www/TFCRM/
+3) cd /var/www/TFCRM
+4) DRY RUN: node apply_tfcrm_tara_ai_providers_schema_fix_v1.mjs
+
+لا تكمل إلا لو ظهر: SCHEMA_STATE=LEGACY_EXACT و ROW_COUNT=0 و RESULT=DRY_RUN_PASS.
+
+5) APPLY: node apply_tfcrm_tara_ai_providers_schema_fix_v1.mjs --apply
+
+مسموح ALTER واحد فقط على tara_ai_providers لتحويله للـ schema الحالية وإزالة config_json لأن الجدول فارغ. ممنوع CREATE/DROP TABLE، INSERT/UPDATE/DELETE، db:push، migrations عامة، تشغيل scripts/apply-tara-multi-provider-v1-migration.ts، تعديل سورس، build، tsc، PM2 restart، Docker/Evolution restart، أو أي Provider API call.
+
+بعد النجاح المطلوب:
+ACTION=LEGACY_SCHEMA_CONVERTED
+CURRENT_COLUMNS=id,tenant_key,provider,enabled,is_primary,fallback_priority,api_key_encrypted,base_url,model,last_test_status,last_test_message,last_test_at,updated_by,created_at,updated_at
+CURRENT_INDEXES=PRIMARY,uq_tara_ai_providers_tenant_provider,idx_tara_ai_providers_order
+QUERY_SMOKE=PASS
+ROW_COUNT_AFTER=0
+DB_SCHEMA_CHANGED=YES
+DB_DATA_CHANGED=NO
+SOURCE_CODE_CHANGED=NO
+PROVIDER_API_CALLED=NO
+RESULT=PASS
+
+ثم احذف السكربت المؤقت فقط. افتح /tara ثم مفاتيح الذكاء. لا تدخل API Key من Replit. لو ظهر Error جديد انسخه ولا تصلحه تلقائيًا.
+
+الرد النهائي:
+PASS/FAIL:
+DRY_RUN:
+SCHEMA_STATE_BEFORE:
+ROW_COUNT_BEFORE:
+CURRENT_COLUMNS:
+CURRENT_INDEXES:
+QUERY_SMOKE:
+ROW_COUNT_AFTER:
+DB_SCHEMA_CHANGED:
+DB_DATA_CHANGED:
+SOURCE_CODE_CHANGED:
+BUILD:
+TFCRM_RESTART:
+PROVIDER_API_CALLED:
+TARA_PROVIDER_TAB:
+BACKEND_ERROR_TEXT:
+PATCH_SCRIPT_DELETED:
+NOTES:
