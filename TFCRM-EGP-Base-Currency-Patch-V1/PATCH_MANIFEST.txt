@@ -1,0 +1,27 @@
+PATCH: TFCRM-EGP-Base-Currency-Patch-V1
+TARGET: mohamedamouseo-a11y/TFCRM
+BASE EXPECTATION: TFCRM main with SAR as the current base currency
+
+MODIFIED BY PATCH:
+- server/lib/currency.ts
+- server/exchangeRateSync.ts
+- client/src/components/CurrencySettingsTab.tsx
+- drizzle/schema.ts
+- server/db.ts
+
+BEHAVIOR:
+- Base/default currency: EGP
+- Base display: Egyptian Pound / جنيه مصري
+- Foreign exchange sync: SAR -> EGP, USD -> EGP
+- Identity rate: EGP -> EGP = 1
+- New currency-field defaults: EGP
+- Revenue/payment/deal base calculations: EGP
+- Legacy valueSar field name: preserved
+- Historical currency codes: preserved; values are recalculated through the existing recalculation action
+
+POST-APPLY:
+1. npm run check
+2. Start application
+3. Admin Settings > Currency > Sync Rates Now
+4. Admin Settings > Currency > Recalculate All Values
+5. Verify dashboards/revenue/deals/payments display and aggregate in EGP
