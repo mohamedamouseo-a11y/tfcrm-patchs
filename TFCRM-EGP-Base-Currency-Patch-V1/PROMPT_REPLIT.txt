@@ -1,0 +1,18 @@
+Apply the attached TFCRM EGP Base Currency Patch V1 to the current TFCRM project.
+
+Requirements:
+- Run APPLY_PATCH.py against the project root.
+- Do not rename legacy DB columns such as valueSar.
+- Do not relabel historical SAR/USD records as EGP.
+- EGP must become the base/default currency for deals, payments, reports, dashboards, and exchange-rate conversion.
+- Keep SAR and USD supported as foreign currencies.
+- Run npm run check after applying.
+- Start the app and verify Admin Settings > Currency shows:
+  - SAR -> EGP
+  - USD -> EGP
+  - EGP -> EGP = 1
+- Trigger Sync Rates Now.
+- Trigger Recalculate All Values only after rates are available.
+- Do not make unrelated UI, schema, or business-logic changes.
+
+Return a concise report with changed files, type-check status, exchange-rate sync status, and any blocker.
