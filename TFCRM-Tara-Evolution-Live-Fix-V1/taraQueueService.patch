@@ -1,0 +1,18 @@
+--- a/server/services/tara/taraQueueService.ts
++++ b/server/services/tara/taraQueueService.ts
+@@
+-    const voiceResult = await processTaraVoiceQueue({ limit: Math.min(10, limit) });
++    let voiceResult: any = { processed: 0, setupRequired: false };
++    try {
++      voiceResult = await processTaraVoiceQueue({ limit: Math.min(10, limit) });
++    } catch (error: any) {
++      // Voice processing is optional and must never block normal text inbound jobs.
++      // Legacy/missing tara_voice_jobs schema should degrade voice only while Tara
++      // continues processing text WhatsApp messages normally.
++      console.warn(
++        "[Tara] voice queue unavailable; continuing text inbound queue:",
++        String(error?.message || error).slice(0, 1000),
++      );
++      voiceResult = { processed: 0, setupRequired: true };
++    }
+     for (let index = 0; index < limit; index += 1) {
