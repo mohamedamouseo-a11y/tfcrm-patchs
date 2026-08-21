@@ -1,0 +1,105 @@
+TFCRM — Tara Evolution Live Fix V1
+
+Target repository:
+mohamedamouseo-a11y/TFCRM
+Branch: main
+
+Patch source:
+mohamedamouseo-a11y/tfcrm-patchs
+Branch: tara-evolution-live-fix-v1
+Folder: TFCRM-Tara-Evolution-Live-Fix-V1
+
+Use the attached diagnostic findings as the source of truth.
+
+OBJECTIVE
+Restore Tara automatic TEXT replies for Evolution API WhatsApp safely, without changing Evolution configuration and without attempting the full Tara Voice schema migration in this V1.
+
+CONFIRMED LIVE FACTS
+- Evolution webhook reaches TFCRM and inbound messages persist successfully.
+- whatsapp_sessions.id=6 / session_key=tcrm-mini-cash-a6b3a6 is Connected but tara_enabled=0.
+- Runtime tenant resolver currently falls back to primary because TARA_TENANT_KEY/RAKAN_TENANT_KEY is not set.
+- tenant primary is disabled and has no valid provider configuration.
+- tenant tfcrm is enabled and has a working primary Agnes provider row with successful last test.
+- tara_settings for tfcrm currently has auto_send=0.
+- tara_voice_jobs is legacy and current processTaraVoiceQueue throws before text tara_inbound_jobs are claimed.
+
+IMPLEMENTATION
+1. Fetch the patch folder from tfcrm-patchs branch tara-evolution-live-fix-v1.
+
+2. Before any change, re-verify:
+   - whatsapp_sessions.id=6 still has session_key=tcrm-mini-cash-a6b3a6 and is the intended live account.
+   - tara_settings tenant tfcrm exists and enabled=1.
+   - enabled primary provider for tenant tfcrm is still Agnes and last_test_status=success.
+   - current server/services/tara/taraQueueService.ts still contains the direct awaited call:
+     const voiceResult = await processTaraVoiceQueue(...)
+   Abort if these assumptions are no longer true.
+
+3. Apply taraQueueService.patch to server/services/tara/taraQueueService.ts.
+   Purpose: a Tara Voice queue/schema failure must degrade Voice only and MUST NOT abort normal text Tara inbound processing.
+
+4. DO NOT ALTER tara_voice_jobs in this V1.
+   Do not drop, rename, recreate, or migrate the legacy voice table.
+
+5. Apply only the verified runtime data changes from tara_voice_jobs_migration.sql:
+   - enable Tara only for whatsapp_sessions.id=6 with exact matching session_key tcrm-mini-cash-a6b3a6
+   - set tara_settings.enabled=1 and auto_send=1 only for tenant_key=tfcrm
+
+6. Configure TFCRM runtime tenant:
+   TARA_TENANT_KEY=tfcrm
+   Add it to the actual persistent PM2 runtime configuration/environment used by the tfcrm process, not only the current shell.
+   Do not expose secrets.
+
+7. Build TFCRM using the repository's existing build command.
+   If build/test fails, stop and report; do not restart production with a failed build.
+
+8. Restart ONLY the tfcrm PM2 process with updated environment.
+   Do not restart Evolution API or unrelated services.
+
+9. Verification after restart:
+   A. Confirm PM2 tfcrm is online.
+   B. Confirm runtime TARA_TENANT_KEY resolves to tfcrm.
+   C. Confirm session id=6 tara_enabled=1.
+   D. Confirm tfcrm Tara settings enabled=1 and auto_send=1.
+   E. Confirm primary Agnes provider for tfcrm is readable/configured.
+   F. Confirm Tara worker logs may warn that Voice queue is unavailable, but the text queue continues running.
+
+10. LIVE TEXT TEST
+   Send ONE new normal text WhatsApp message to session tcrm-mini-cash-a6b3a6.
+   Trace:
+   Evolution webhook
+   -> whatsapp_messages persisted
+   -> tara_inbound_jobs created/claimed
+   -> tara_agent_runs created
+   -> Agnes provider call succeeds
+   -> Evolution outbound send attempted
+   -> outbound WhatsApp reply succeeds
+
+11. Verify no duplicate Tara reply was emitted.
+
+12. Do not test voice messages in this V1.
+
+RETURN EXACTLY A CONCISE REPORT:
+
+TFCRM_TARA_EVOLUTION_LIVE_FIX_V1
+PATCH_APPLIED=YES/NO
+VOICE_FAILURE_ISOLATED=YES/NO
+TARA_VOICE_TABLE_CHANGED=NO
+RUNTIME_TENANT=tfcrm/OTHER
+SESSION_6_TARA_ENABLED=YES/NO
+TARA_GLOBAL_ENABLED=YES/NO
+TARA_AUTO_SEND=YES/NO
+PROVIDER=agnes/OTHER
+PROVIDER_CONFIG_VALID=YES/NO
+BUILD=PASS/FAIL
+PM2_TFCRM=ONLINE/OFFLINE
+TEXT_WEBHOOK_RECEIVED=YES/NO
+TEXT_JOB_CLAIMED=YES/NO
+TARA_RUN_CREATED=YES/NO
+LLM_CALL_SUCCESS=YES/NO
+EVOLUTION_SEND_ATTEMPTED=YES/NO
+EVOLUTION_SEND_SUCCESS=YES/NO
+DUPLICATE_REPLY=YES/NO
+RESULT=PASS/FAIL
+ERROR=
+
+Do not push TFCRM source to GitHub unless explicitly instructed separately.
