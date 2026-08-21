@@ -3,31 +3,34 @@ TFCRM_TARA_EVOLUTION_LIVE_FIX_V1
 Target repository: mohamedamouseo-a11y/TFCRM
 Target branch: main
 Patch repository: mohamedamouseo-a11y/tfcrm-patchs
+Patch branch: tara-evolution-live-fix-v1
 
 Purpose:
-Restore Tara automatic replies for Evolution API WhatsApp by fixing the confirmed live blockers from TFCRM_TARA_EVOLUTION_LIVE_DIAGNOSTIC_V1.
+Restore Tara automatic TEXT replies for Evolution API WhatsApp by fixing the confirmed live blockers from TFCRM_TARA_EVOLUTION_LIVE_DIAGNOSTIC_V1.
 
 Confirmed blockers:
 1. tara_voice_jobs live schema is legacy and incompatible with current taraVoiceQueueService.ts.
-2. Runtime tenant falls back to primary because TARA_TENANT_KEY/RAKAN_TENANT_KEY is unset; working provider configuration is under tenant tfcrm.
-3. whatsapp_sessions.id=6 has tara_enabled=0.
-4. tara_settings tenant tfcrm has enabled=1 but auto_send=0.
+2. processTaraInboundQueue() awaits processTaraVoiceQueue() before normal text jobs, so the voice schema error aborts text processing.
+3. Runtime tenant falls back to primary because TARA_TENANT_KEY/RAKAN_TENANT_KEY is unset; working provider configuration is under tenant tfcrm.
+4. whatsapp_sessions.id=6 has tara_enabled=0.
+5. tara_settings tenant tfcrm has enabled=1 but auto_send=0.
 
 Patch strategy:
-A. Apply an additive schema migration to tara_voice_jobs, preserving existing rows and avoiding destructive DROP/RENAME operations.
-B. Set runtime environment TARA_TENANT_KEY=tfcrm in the TFCRM PM2 runtime configuration/environment.
-C. Enable Tara for the intended Evolution WhatsApp session only (session id=6 / tcrm-mini-cash-a6b3a6), after verifying it is still the intended live account.
-D. Set tara_settings.auto_send=1 for tenant_key='tfcrm'.
-E. Build and restart only the TFCRM PM2 app after all checks pass.
-F. Verify one new inbound WhatsApp text produces a Tara job, provider call, and Evolution outbound send.
+A. Source patch: isolate processTaraVoiceQueue() failure so Voice degrades independently and normal text tara_inbound_jobs continue.
+B. DO NOT migrate/alter tara_voice_jobs in V1.
+C. Set persistent TFCRM runtime environment TARA_TENANT_KEY=tfcrm.
+D. Enable Tara only for intended Evolution WhatsApp session id=6 / tcrm-mini-cash-a6b3a6 after re-verification.
+E. Set tara_settings.enabled=1 and auto_send=1 only for tenant_key=tfcrm.
+F. Build and restart only the TFCRM PM2 app after checks pass.
+G. Verify one new inbound TEXT WhatsApp message creates/claims a Tara job, calls Agnes, and sends exactly one Evolution outbound reply.
 
 Safety constraints:
 - Do not change Evolution API base URL, webhook URL, token, secret, or instance configuration.
-- Do not alter unrelated WhatsApp sessions.
+- Do not alter tara_voice_jobs in this V1.
+- Do not alter unrelated WhatsApp sessions or tenants.
 - Do not bulk-modify historical messages/jobs.
 - Do not expose credentials.
-- Back up schema metadata before migration.
-- Abort if the live schema no longer matches the diagnostic assumptions.
+- Abort if live identifiers/config no longer match the diagnostic assumptions.
 
 Expected end state:
 EVOLUTION_WEBHOOK_REACHES_TFCRM=YES
@@ -39,3 +42,5 @@ TARA_RUNTIME_INVOKED=YES
 PROVIDER_CONFIG_VALID=YES
 LLM_CALL_SUCCESS=YES
 EVOLUTION_SEND_SUCCESS=YES
+DUPLICATE_REPLY=NO
+VOICE_TABLE_CHANGED=NO
