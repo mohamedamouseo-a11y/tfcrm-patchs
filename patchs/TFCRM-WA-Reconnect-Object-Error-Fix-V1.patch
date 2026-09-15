@@ -1,0 +1,58 @@
+diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
+--- a/server/services/waGatewayIntegrationService.ts
++++ b/server/services/waGatewayIntegrationService.ts
+@@ -337,8 +337,36 @@
+   return value?.trim() ? "••••••••" : null;
+ }
+ 
++function gatewayErrorText(value: unknown, depth = 0): string {
++  if (value == null || depth > 3) return "";
++  if (typeof value === "string" || typeof value === "number")
++    return String(value).trim();
++  if (value instanceof Error) return value.message.trim();
++  if (Array.isArray(value)) {
++    return [
++      ...new Set(
++        value
++          .slice(0, 5)
++          .map(item => gatewayErrorText(item, depth + 1))
++          .filter(Boolean)
++      ),
++    ].join(" — ");
++  }
++  if (typeof value === "object") {
++    const record = value as Record<string, unknown>;
++    const parts = ["message", "response", "error", "detail", "details", "reason"]
++      .map(key => gatewayErrorText(record[key], depth + 1))
++      .filter(Boolean);
++    if (parts.length) return [...new Set(parts)].join(" — ");
++    const status = record.statusCode ?? record.status ?? record.code;
++    if (typeof status === "string" || typeof status === "number")
++      return `Evolution API error (${String(status)})`;
++  }
++  return "";
++}
++
+ function sanitizeGatewayError(value: unknown) {
+-  const text = String(value || "Evolution API request failed")
++  const text = (gatewayErrorText(value) || "Evolution API request failed")
+     .replace(/Bearer\s+[A-Za-z0-9._~+\/=:-]+/gi, "Bearer [redacted]")
+     .replace(
+       /(apikey|authorization|api[_-]?token)\s*[:=]\s*[^\s,;]+/gi,
+@@ -2551,8 +2579,14 @@
+ export async function reconnectWAGateway(accountId?: string | null) {
+   if (!accountId) throw new Error("WhatsApp account is required");
+   const session = await resolveSession(accountId);
+-  await gatewayRequest(
++  const restart = await gatewayRequest(
+     `/instance/restart/${encodeURIComponent(session.sessionKey)}`,
+-    { method: "POST", strict: true }
++    { method: "POST" }
+   );
++  if (!restart.success) {
++    await gatewayRequest(
++      `/instance/connect/${encodeURIComponent(session.sessionKey)}`,
++      { method: "GET", strict: true }
++    );
++  }
+   const db = await getDb();
