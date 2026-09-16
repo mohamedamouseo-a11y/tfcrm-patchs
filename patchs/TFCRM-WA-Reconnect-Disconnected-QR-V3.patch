@@ -1,0 +1,37 @@
+diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
+--- a/server/services/waGatewayIntegrationService.ts
++++ b/server/services/waGatewayIntegrationService.ts
+@@ -2579,15 +2579,25 @@ export async function reconnectWAGateway(accountId?: string | null) {
+   const session = await resolveSession(accountId);
+   const restart = await gatewayRequest(
+     `/instance/restart/${encodeURIComponent(session.sessionKey)}`,
+     { method: "POST" }
+   );
+-  if (!restart.success) {
+-    const qrResult = await getWAGatewayQr(String(session.id));
+-    return {
+-      ...qrResult,
+-      action: "reconnect",
+-      fallback: "qr" as const,
+-      status: qrResult.image || qrResult.qr ? "QR" as const : "Connecting" as const,
+-    };
++  const localState = String(session.status || "").toLowerCase();
++  const shouldRequestQr =
++    localState === "disconnected" || localState === "error" || localState === "qr";
++  if (!restart.success || shouldRequestQr) {
++    try {
++      const qrResult = await getWAGatewayQr(String(session.id));
++      if (qrResult.image || qrResult.qr || !restart.success) {
++        return {
++          ...qrResult,
++          action: "reconnect",
++          fallback: "qr" as const,
++          status: qrResult.image || qrResult.qr ? "QR" as const : "Connecting" as const,
++        };
++      }
++    } catch (error) {
++      if (!restart.success) throw error;
++      // Restart may have connected the instance before the QR request completed.
++    }
+   }
+   const db = await getDb();
