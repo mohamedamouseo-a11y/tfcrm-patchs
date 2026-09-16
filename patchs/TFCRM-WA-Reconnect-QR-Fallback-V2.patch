@@ -1,0 +1,41 @@
+diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
+--- a/server/services/waGatewayIntegrationService.ts
++++ b/server/services/waGatewayIntegrationService.ts
+@@ -2579,12 +2579,16 @@ export async function reconnectWAGateway(accountId?: string | null) {
+   const restart = await gatewayRequest(
+     `/instance/restart/${encodeURIComponent(session.sessionKey)}`,
+     { method: "POST" }
+   );
+   if (!restart.success) {
+-    await gatewayRequest(
+-      `/instance/connect/${encodeURIComponent(session.sessionKey)}`,
+-      { method: "GET", strict: true }
+-    );
++    const qrResult = await getWAGatewayQr(String(session.id));
++    return {
++      ...qrResult,
++      action: "reconnect",
++      fallback: "qr" as const,
++      status: qrResult.image || qrResult.qr ? "QR" as const : "Connecting" as const,
++    };
+   }
+   const db = await getDb();
+   if (db)
+     await db
+       .update(whatsappSessions)
+diff --git a/client/src/pages/wa/WAGatewayAccounts.tsx b/client/src/pages/wa/WAGatewayAccounts.tsx
+--- a/client/src/pages/wa/WAGatewayAccounts.tsx
++++ b/client/src/pages/wa/WAGatewayAccounts.tsx
+@@ -113,7 +113,14 @@ export default function WAGatewayAccounts() {
+     onSuccess: async (data) => { setName(""); setOwnerName(""); setClientId(""); setAssignedUserIds([]); setQrData(data); toast.success(c.created); await utils.waGateway.getStatus.invalidate(); },
+     onError: (e) => toast.error(e.message),
+   });
+-  const reconnect = trpc.waGateway.reconnect.useMutation({ onSuccess: () => utils.waGateway.getStatus.invalidate(), onError: (e) => toast.error(e.message) });
++  const reconnect = trpc.waGateway.reconnect.useMutation({
++    onSuccess: async (data) => {
++      if ((data as any)?.image || (data as any)?.qr) setQrData(data);
++      await utils.waGateway.getStatus.invalidate();
++    },
++    onError: (e) => toast.error(e.message),
++  });
+   const logout = trpc.waGateway.logout.useMutation({ onSuccess: () => utils.waGateway.getStatus.invalidate(), onError: (e) => toast.error(e.message) });
