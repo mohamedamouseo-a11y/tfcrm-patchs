@@ -1,7 +1,7 @@
 diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
 --- a/server/services/waGatewayIntegrationService.ts
 +++ b/server/services/waGatewayIntegrationService.ts
-@@ -1164,6 +1164,7 @@ function evolutionEventEntries(payload: any, keys: string[]) {
+@@ -1164,5 +1164,6 @@ function evolutionEventEntries(payload: any, keys: string[]) {
  // the in-flight sync will write the latest contacts once it completes.
  const _waContactSyncRunning = new Set<number>();
 +const _waContactDeleteRunning = new Set<number>();
@@ -16,15 +16,16 @@ diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/wa
    if (_waContactSyncRunning.has(sessionId)) return 0;
    _waContactSyncRunning.add(sessionId);
    try {
-@@ -2643,6 +2645,8 @@ export async function deleteWAGatewayAccount(accountId: string) {
- export async function deleteWAGatewayAccount(accountId: string) {
+@@ -2644,6 +2646,8 @@ export async function deleteWAGatewayAccount(accountId: string) {
    const session = await resolveSession(accountId);
 +  _waContactDeleteRunning.add(session.id);
 +  try {
    const remote = await gatewayRequest(
      `/instance/delete/${encodeURIComponent(session.sessionKey)}`,
      { method: "DELETE" }
-@@ -2672,6 +2676,15 @@ export async function deleteWAGatewayAccount(accountId: string) {
+   );
+   if (!remote.success && remote.status !== 404)
+@@ -2672,5 +2676,14 @@ export async function deleteWAGatewayAccount(accountId: string) {
          .delete(whatsappGroupParticipants)
          .where(inArray(whatsappGroupParticipants.chatId, chatIds));
      }
@@ -39,8 +40,8 @@ diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/wa
 +      throw new Error("WhatsApp contact sync is still running; retry delete shortly");
      const deleteContactsWithLockRetry = async () => {
        const maxAttempts = 3;
-       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-@@ -2711,6 +2724,9 @@ export async function deleteWAGatewayAccount(accountId: string) {
+@@ -2711,5 +2724,8 @@ export async function deleteWAGatewayAccount(accountId: string) {
+       .set({ deletedAt, status: "Disconnected", qrCode: null })
        .where(eq(whatsappSessions.id, session.id));
    }
    return { success: true, accountId: String(session.id) };
@@ -48,5 +49,3 @@ diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/wa
 +    _waContactDeleteRunning.delete(session.id);
 +  }
  }
- 
- function normalizePhone(value: string) {
