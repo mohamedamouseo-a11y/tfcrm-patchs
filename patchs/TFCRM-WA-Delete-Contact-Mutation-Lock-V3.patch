@@ -1,0 +1,79 @@
+diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
+--- a/server/services/waGatewayIntegrationService.ts
++++ b/server/services/waGatewayIntegrationService.ts
+@@ -1164,6 +1164,26 @@
+ // the in-flight sync will write the latest contacts once it completes.
+ const _waContactSyncRunning = new Set<number>();
+ const _waContactDeleteRunning = new Set<number>();
++const _waContactMutationCounts = new Map<number, number>();
++
++function beginWAGatewayContactMutation(sessionId: number) {
++  if (_waContactDeleteRunning.has(sessionId)) return false;
++  _waContactMutationCounts.set(
++    sessionId,
++    (_waContactMutationCounts.get(sessionId) ?? 0) + 1
++  );
++  return true;
++}
++
++function endWAGatewayContactMutation(sessionId: number) {
++  const remaining = (_waContactMutationCounts.get(sessionId) ?? 1) - 1;
++  if (remaining > 0) _waContactMutationCounts.set(sessionId, remaining);
++  else _waContactMutationCounts.delete(sessionId);
++}
++
++function hasWAGatewayContactMutation(sessionId: number) {
++  return (_waContactMutationCounts.get(sessionId) ?? 0) > 0;
++}
+ 
+ async function syncWAGatewayContactsFromRecords(
+   sessionId: number,
+@@ -1174,5 +1194,6 @@
+   if (!db) return 0;
+   if (_waContactDeleteRunning.has(sessionId)) return 0;
+   if (_waContactSyncRunning.has(sessionId)) return 0;
++  if (!beginWAGatewayContactMutation(sessionId)) return 0;
+   _waContactSyncRunning.add(sessionId);
+   try {
+@@ -1245,6 +1245,7 @@
+     return normalized.length;
+   } finally {
+     _waContactSyncRunning.delete(sessionId);
++    endWAGatewayContactMutation(sessionId);
+   }
+ }
+ 
+@@ -2676,10 +2676,14 @@
+     const contactSyncDeadline = Date.now() + 15000;
+     while (
+-      _waContactSyncRunning.has(session.id) &&
++      (_waContactSyncRunning.has(session.id) ||
++        hasWAGatewayContactMutation(session.id)) &&
+       Date.now() < contactSyncDeadline
+     ) {
+       await new Promise<void>(resolve => setTimeout(resolve, 250));
+     }
+-    if (_waContactSyncRunning.has(session.id))
+-      throw new Error("WhatsApp contact sync is still running; retry delete shortly");
++    if (
++      _waContactSyncRunning.has(session.id) ||
++      hasWAGatewayContactMutation(session.id)
++    )
++      throw new Error("WhatsApp contact mutation is still running; retry delete shortly");
+     const deleteContactsWithLockRetry = async () => {
+@@ -3972,7 +3972,14 @@
+   const db = await getDb();
+   if (db) {
+     await db.update(whatsappChats).set({ profilePictureUrl, profilePictureCheckedAt }).where(eq(whatsappChats.id, Number(chat.id)));
+-    await db.update(whatsappContacts).set({ profilePictureUrl }).where(and(eq(whatsappContacts.sessionId, Number(chat.sessionId)), eq(whatsappContacts.jid, String(chat.jid)))).catch(() => {});
++    const contactSessionId = Number(chat.sessionId);
++    if (beginWAGatewayContactMutation(contactSessionId)) {
++      try {
++        await db.update(whatsappContacts).set({ profilePictureUrl }).where(and(eq(whatsappContacts.sessionId, contactSessionId), eq(whatsappContacts.jid, String(chat.jid)))).catch(() => {});
++      } finally {
++        endWAGatewayContactMutation(contactSessionId);
++      }
++    }
+   }
+   return { success: true, chatId: Number(chat.id), profilePictureUrl, profilePictureCheckedAt };
+ }
