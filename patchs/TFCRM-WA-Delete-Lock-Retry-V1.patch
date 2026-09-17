@@ -1,0 +1,45 @@
+diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
+--- a/server/services/waGatewayIntegrationService.ts
++++ b/server/services/waGatewayIntegrationService.ts
+@@ -2658,15 +2658,38 @@ export async function deleteWAGatewayAccount(accountId: string) {
+     if (chatIds.length) {
+       await db
+         .delete(whatsappChatReads)
+         .where(inArray(whatsappChatReads.chatId, chatIds));
+       await db
+         .delete(whatsappGroupParticipants)
+         .where(inArray(whatsappGroupParticipants.chatId, chatIds));
+     }
+-    await db
+-      .delete(whatsappContacts)
+-      .where(eq(whatsappContacts.sessionId, session.id));
++    const deleteContactsWithLockRetry = async () => {
++      const maxAttempts = 3;
++      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
++        try {
++          await db
++            .delete(whatsappContacts)
++            .where(eq(whatsappContacts.sessionId, session.id));
++          return;
++        } catch (error) {
++          const mysqlError = error as {
++            code?: string;
++            errno?: number;
++            cause?: { code?: string; errno?: number };
++          };
++          const code = mysqlError.code ?? mysqlError.cause?.code;
++          const errno = mysqlError.errno ?? mysqlError.cause?.errno;
++          const isLockTimeout =
++            code === "ER_LOCK_WAIT_TIMEOUT" || errno === 1205;
++          if (!isLockTimeout || attempt === maxAttempts) throw error;
++          await new Promise<void>(resolve =>
++            setTimeout(resolve, attempt * 500)
++          );
++        }
++      }
++    };
++    await deleteContactsWithLockRetry();
+     await db
+       .update(whatsappChats)
+       .set({ deletedAt })
+       .where(eq(whatsappChats.sessionId, session.id));
