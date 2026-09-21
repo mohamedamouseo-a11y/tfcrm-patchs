@@ -1,0 +1,26 @@
+diff --git a/server/services/waGatewayContactSync.ts b/server/services/waGatewayContactSync.ts
+--- a/server/services/waGatewayContactSync.ts
++++ b/server/services/waGatewayContactSync.ts
+@@ -1,5 +1,7 @@
+ const WAGATEWAY_CONTEXT_ONLY_KEYS = new Set([
+   "messageContextInfo",
+   "senderKeyDistributionMessage",
++  "secretEncryptedMessage",
++  "albumMessage",
+ ]);
+ 
+ export function isWAGatewayContextOnlyMessage(value: any): boolean {
+diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
+--- a/server/services/waGatewayIntegrationService.ts
++++ b/server/services/waGatewayIntegrationService.ts
+@@ -1,6 +1,7 @@
+ function messageBody(message: any) {
+   if (isWAGatewayContextOnlyMessage(message)) return null;
+   const msg = unwrapWAGatewayMessageContent(message);
+   return (
+     msg.conversation ||
+     msg.extendedTextMessage?.text ||
++    msg.reactionMessage?.text ||
+     msg.imageMessage?.caption ||
+     msg.videoMessage?.caption ||
+     msg.documentMessage?.caption ||
