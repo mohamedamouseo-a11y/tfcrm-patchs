@@ -1,0 +1,41 @@
+diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
+--- a/server/services/waGatewayIntegrationService.ts
++++ b/server/services/waGatewayIntegrationService.ts
+@@ -1010,13 +1010,31 @@ async function upsertWAGatewayChatMetadata(
+     return { ...existing, ...metadata };
+   }
+   if (options.createIfMissing === false) return null;
+-  await db.insert(whatsappChats).values({
+-    sessionId,
+-    jid,
+-    ...metadata,
+-    unreadCount: 0,
+-    conversationState: "Open",
+-  } as any);
++  try {
++    await db.insert(whatsappChats).values({
++      sessionId,
++      jid,
++      ...metadata,
++      unreadCount: 0,
++      conversationState: "Open",
++    } as any);
++  } catch (error: unknown) {
++    if (
++      mysqlErrorNumber(error) === 1062 ||
++      mysqlErrorCode(error) === "ER_DUP_ENTRY"
++    ) {
++      const [raced] = await db
++        .select()
++        .from(whatsappChats)
++        .where(
++          and(eq(whatsappChats.sessionId, sessionId), eq(whatsappChats.jid, jid))
++        )
++        .limit(1);
++      if (raced) return raced;
++    }
++    throw error;
++  }
+   const [created] = await db
+     .select()
+     .from(whatsappChats)
