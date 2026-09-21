@@ -1,7 +1,8 @@
 diff --git a/server/services/waGatewayContactSync.ts b/server/services/waGatewayContactSync.ts
 --- a/server/services/waGatewayContactSync.ts
 +++ b/server/services/waGatewayContactSync.ts
-@@ -320,8 +320,10 @@ const WAGATEWAY_CONTEXT_ONLY_KEYS = new Set([
+@@ -320,6 +320,8 @@
+ const WAGATEWAY_CONTEXT_ONLY_KEYS = new Set([
    "messageContextInfo",
    "senderKeyDistributionMessage",
 +  "secretEncryptedMessage",
@@ -9,14 +10,10 @@ diff --git a/server/services/waGatewayContactSync.ts b/server/services/waGateway
  ]);
  
  export function isWAGatewayContextOnlyMessage(value: any): boolean {
-   const content = unwrapWAGatewayMessageContent(value);
-   const keys = Object.keys(content).filter(key => content[key] != null);
 diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/waGatewayIntegrationService.ts
 --- a/server/services/waGatewayIntegrationService.ts
 +++ b/server/services/waGatewayIntegrationService.ts
-@@ -7900,10 +7900,11 @@ function messageBody(message: any) {
-   if (isWAGatewayContextOnlyMessage(message)) return null;
-   const msg = unwrapWAGatewayMessageContent(message);
+@@ -7903,6 +7903,7 @@ function messageBody(message: any) {
    return (
      msg.conversation ||
      msg.extendedTextMessage?.text ||
@@ -24,4 +21,3 @@ diff --git a/server/services/waGatewayIntegrationService.ts b/server/services/wa
      msg.imageMessage?.caption ||
      msg.videoMessage?.caption ||
      msg.documentMessage?.caption ||
-     msg.documentMessage?.fileName ||
